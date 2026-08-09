@@ -1,0 +1,1730 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>福音 · 风水户型分析 — 二十四山</title>
+<style>
+  :root {
+    --bg: #faf7f0;
+    --surface: #f2ecdf;
+    --border: #d4c8b0;
+    --text: #3d2e1f;
+    --text-dim: #8c7b6b;
+    --accent: #b52330;
+    --accent-glow: #d4303f;
+    --gold: #b8942e;
+    --step-active: #d4303f;
+    --step-done: #4caf84;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  /* ── header ── */
+  #header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 20px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    z-index: 10;
+    flex-shrink: 0;
+  }
+  #header h1 { font-size: 1.15rem; font-weight: 600; letter-spacing: .04em; }
+  #header h1 span { color: var(--accent-glow); }
+
+  #steps {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+  }
+  .step-dot {
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: .78rem; font-weight: 700;
+    background: var(--border);
+    color: var(--text-dim);
+    transition: all .25s;
+  }
+  .step-dot.active { background: var(--step-active); color: #fff; box-shadow: 0 0 12px rgba(255,77,106,.5); }
+  .step-dot.done { background: var(--step-done); color: #fff; }
+  .step-line { width: 28px; height: 2px; background: var(--border); border-radius: 1px; }
+  .step-line.done { background: var(--step-done); }
+
+  /* ── main area ── */
+  #main {
+    flex: 1;
+    display: flex;
+    position: relative;
+    overflow: hidden;
+  }
+
+  #canvas-wrap {
+    flex: 1;
+    position: relative;
+    cursor: crosshair;
+    overflow: hidden;
+  }
+  canvas {
+    display: block;
+  }
+
+  /* ── sidebar ── */
+  #sidebar {
+    width: 300px;
+    background: var(--surface);
+    border-left: 1px solid var(--border);
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    overflow-y: auto;
+    flex-shrink: 0;
+    z-index: 5;
+  }
+  #sidebar h3 {
+    font-size: .95rem; font-weight: 600; color: var(--accent-glow);
+    margin-bottom: 2px;
+  }
+  #sidebar p.desc {
+    font-size: .82rem; color: var(--text-dim); line-height: 1.5;
+  }
+
+  .ctrl-group {
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  .ctrl-group label {
+    font-size: .78rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: .06em;
+  }
+  .ctrl-row {
+    display: flex; gap: 8px; align-items: center;
+  }
+
+  button {
+    padding: 8px 18px;
+    border: none; border-radius: 6px;
+    font-size: .85rem; font-weight: 600; cursor: pointer;
+    transition: all .18s;
+    font-family: inherit;
+  }
+  button.primary {
+    background: var(--accent); color: #fff;
+  }
+  button.primary:hover { background: var(--accent-glow); }
+  button.secondary {
+    background: var(--border); color: var(--text);
+  }
+  button.secondary:hover { background: #c8baa0; }
+  button:disabled { opacity: .4; cursor: not-allowed; }
+
+  /* ── action buttons (uniform width, icon+text inline) ── */
+  .btn-act {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    padding: 9px 12px;
+    min-height: 40px;
+    font-size: .84rem;
+    font-weight: 600;
+    border-radius: 6px;
+    border: none;
+    cursor: pointer;
+    transition: all .2s;
+    font-family: inherit;
+    flex: 1 1 0;
+    max-width: 180px;
+    white-space: nowrap;
+  }
+  .btn-act .arr { font-size: 1em; opacity: .85; }
+
+  input[type=range] {
+    width: 100%; accent-color: var(--accent);
+  }
+  input[type=number] {
+    width: 70px; padding: 6px 8px;
+    background: var(--bg); color: var(--text);
+    border: 1px solid var(--border); border-radius: 4px;
+    font-size: .85rem; text-align: center; font-family: inherit;
+  }
+
+  .info-card {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 14px;
+    font-size: .82rem;
+    line-height: 1.6;
+  }
+  .info-card .val { color: var(--accent-glow); font-weight: 700; }
+
+  /* ── legend ── */
+  #legend { margin-top: auto; }
+  #legend .grid-mini {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 2px;
+    margin-top: 6px;
+  }
+  #legend .cell-mini {
+    aspect-ratio: 1;
+    display: flex; align-items: center; justify-content: center;
+    font-size: .7rem; font-weight: 600;
+    border-radius: 3px;
+    flex-direction: column;
+    line-height: 1.2;
+  }
+
+  /* ── upload overlay ── */
+  #upload-overlay {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(60,40,20,.45);
+    z-index: 20;
+  }
+  #upload-box {
+    background: var(--surface);
+    border: 2px dashed var(--border);
+    border-radius: 16px;
+    padding: 48px 56px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color .2s;
+  }
+  #upload-box:hover { border-color: var(--accent-glow); }
+  #upload-box h2 { margin-bottom: 8px; }
+  #upload-box p { color: var(--text-dim); font-size: .85rem; }
+
+  /* ── toast ── */
+  #toast {
+    position: fixed; bottom: 32px; left: 50%; transform: translateX(-50%);
+    background: var(--surface); color: var(--text);
+    padding: 10px 24px; border-radius: 20px;
+    font-size: .82rem; border: 1px solid var(--border);
+    opacity: 0; transition: opacity .3s;
+    pointer-events: none; z-index: 99;
+  }
+  #toast.show { opacity: 1; }
+
+  @media (max-width: 768px) {
+    #main { flex-direction: column; }
+    #sidebar { width: 100%; max-height: 220px; flex-shrink: 0; }
+  }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div id="header">
+  <h1>🏠 福音 · 风水户型分析 <span style="font-size:.65rem;color:var(--text-dim);font-weight:400;margin-left:6px">v2.1</span></h1>
+  <div id="steps">
+    <div class="step-dot active" id="sd0">1</div>
+    <div class="step-line" id="sl0"></div>
+    <div class="step-dot" id="sd1">2</div>
+    <div class="step-line" id="sl1"></div>
+    <div class="step-dot" id="sd2">3</div>
+    <div class="step-line" id="sl2"></div>
+    <div class="step-dot" id="sd3">4</div>
+    <div class="step-line" id="sl3"></div>
+    <div class="step-dot" id="sd4">5</div>
+    <div class="step-line" id="sl4"></div>
+    <div class="step-dot" id="sd5">6</div>
+  </div>
+</div>
+
+<!-- MAIN -->
+<div id="main">
+  <div id="canvas-wrap">
+    <canvas id="c"></canvas>
+  </div>
+
+  <!-- SIDEBAR -->
+  <div id="sidebar">
+    <div id="sidebar-content"></div>
+  </div>
+
+  <!-- UPLOAD OVERLAY (step 0) -->
+  <div id="upload-overlay">
+    <div id="upload-box">
+      <h2>📐 上传户型图</h2>
+      <p>支持 JPG / PNG 格式，点击或拖拽上传</p>
+      <input type="file" id="file-input" accept="image/jpeg,image/png" hidden>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div id="toast"></div>
+
+<script>
+// ═══════════════════════════════════════
+//  CONSTANTS
+// ═══════════════════════════════════════
+const BAGUA = [
+  // row, col, name, trigram, direction, luoshuNum
+  [0,0,'乾','☰','西北',6],
+  [0,1,'坎','☵','正北',1],
+  [0,2,'艮','☶','东北',8],
+  [1,0,'兑','☱','正西',7],
+  [1,1,'中宫','','中央',5],
+  [1,2,'震','☳','正东',3],
+  [2,0,'坤','☷','西南',2],
+  [2,1,'离','☲','正南',9],
+  [2,2,'巽','☴','东南',4],
+];
+
+// Five-element (五行) mapping for each Bagua trigram
+const WUXING = {
+  '乾':'金','兑':'金',
+  '坎':'水',
+  '震':'木','巽':'木',
+  '离':'火',
+  '坤':'土','艮':'土','中宫':'土',
+};
+const ELEMENT_BG = {
+  '金':'#f2eee6', '水':'#dce4f0', '木':'#d8e8d8',
+  '火':'#f0dcd6', '土':'#ece0cc',
+};
+const ELEMENT_TEXT = {
+  '金':'#4a3828', '水':'#102850', '木':'#1a3a12',
+  '火':'#7a1a10', '土':'#4a3020',
+};
+const ELEMENT_PLATE = {
+  '金':'rgba(0,0,0,0.28)', '水':'rgba(15,50,90,0.11)',
+  '木':'rgba(25,60,15,0.10)', '火':'rgba(120,30,0,0.11)',
+  '土':'rgba(60,40,20,0.11)',
+};
+
+// Detailed Bagua reference — nature, family role, meaning
+const BAGUA_DETAIL = {
+  '坎':{nature:'水/月',family:'中男',meaning:'智慧、险阻',trait:'陷',animal:'猪',bodyPart:'耳'},
+  '艮':{nature:'山',family:'少男',meaning:'止息、稳健',trait:'止',animal:'狗',bodyPart:'手'},
+  '震':{nature:'雷',family:'长男',meaning:'功名、起步',trait:'动',animal:'龙',bodyPart:'足'},
+  '巽':{nature:'风',family:'长女',meaning:'文昌、钱财',trait:'入',animal:'鸡',bodyPart:'股'},
+  '离':{nature:'火/日',family:'中女',meaning:'声誉、礼节',trait:'丽',animal:'雉',bodyPart:'目'},
+  '坤':{nature:'地',family:'母亲',meaning:'女主、健康',trait:'顺',animal:'牛',bodyPart:'腹'},
+  '兑':{nature:'泽/雨',family:'少女',meaning:'妾位、口舌',trait:'悦',animal:'羊',bodyPart:'口'},
+  '乾':{nature:'天',family:'父亲',meaning:'男主、贵人',trait:'健',animal:'马',bodyPart:'首'},
+  '中宫':{nature:'—',family:'—',meaning:'家运总枢纽、阴阳平衡点',trait:'—',animal:'—',bodyPart:'—'},
+};
+
+// Five-element emoji with yin-yang distinction
+const ELEMENT_EMOJI = {
+  '乾':'🥇','兑':'💍',  // 金: 阳/阴
+  '离':'🔥',              // 火
+  '震':'🌳','巽':'🌿',  // 木: 阳/阴
+  '坎':'💧',              // 水
+  '艮':'⛰️','坤':'🏔️',  // 土: 阳/阴
+  '中宫':'🏠',
+};
+
+// Twenty-Four Mountains (二十四山) — 15° sectors clockwise from North
+const MOUNTAINS_24 = [
+  // name, trigram, direction, element, branch, angle(°)
+  ['子','坎','北','水','子',0],
+  ['癸','坎','北','水','',15],
+  ['丑','艮','东北','土','丑',30],
+  ['艮','艮','东北','土','',45],
+  ['寅','艮','东北','土','寅',60],
+  ['甲','震','东','木','',75],
+  ['卯','震','东','木','卯',90],
+  ['乙','震','东','木','',105],
+  ['辰','巽','东南','木','辰',120],
+  ['巽','巽','东南','木','',135],
+  ['巳','巽','东南','木','巳',150],
+  ['丙','离','南','火','',165],
+  ['午','离','南','火','午',180],
+  ['丁','离','南','火','',195],
+  ['未','坤','西南','土','未',210],
+  ['坤','坤','西南','土','',225],
+  ['申','坤','西南','土','申',240],
+  ['庚','兑','西','金','',255],
+  ['酉','兑','西','金','酉',270],
+  ['辛','兑','西','金','',285],
+  ['戌','乾','西北','金','戌',300],
+  ['乾','乾','西北','金','',315],
+  ['亥','乾','西北','金','亥',330],
+  ['壬','坎','北','水','',345],
+];
+
+// ═══════════════════════════════════════
+//  STATE
+// ═══════════════════════════════════════
+const S = {
+  step: 1,           // 1=upload, 2=square, 3=north, 4=grid, 5=mark, 6=summary
+  markedMountains: new Set(), // Set of MOUNTAINS_24 indices (0-23) marked with ⚠️
+  img: null,         // HTMLImageElement
+  imgW: 0, imgH: 0,
+
+  // View transform
+  vx: 0, vy: 0,      // image top-left on canvas
+  vScale: 1,
+
+  // Square 1 (user-defined house area), in image coords
+  sqCx: 0, sqCy: 0,  // center (intersection of diagonals)
+  sqW: 0, sqH: 0,     // width & height (px) — free aspect ratio
+  sqAngle: 0,         // radians, 0 = top edge is horizontal
+
+  // North direction, radians from "up" (image y-negative), CW+
+  northAngle: 0,
+
+  // Square 2 (grid), size can differ from sqSize
+  gridScale: 1.0,     // 1.0 = 100% = diameter equals rect max side
+
+  // Image opacity for marking mode
+  overlayTransparency: 0.9,   // 0=original (opaque), 1=fully transparent; default 90%
+
+  // Compass (罗盘) opacity — independent of overlay
+  compassTransparency: 0.1,   // 0=fully opaque, 1=fully transparent; default 10%
+
+  // Interaction
+  dragMode: null,     // 'move' | 'scale' | 'rotate' | 'north' | 'pan' | 'create'
+  dragCorner: -1,     // which corner for scale drag
+  dragStart: {x:0,y:0},
+  dragState: null,    // snapshot of sq params at drag start
+
+  // Hover
+  hoverMode: null,
+  hoverCorner: -1,
+};
+
+// ═══════════════════════════════════════
+//  DOM
+// ═══════════════════════════════════════
+const els = {
+  canvas: document.getElementById('c'),
+  wrap: document.getElementById('canvas-wrap'),
+  sidebar: document.getElementById('sidebar-content'),
+  uploadOverlay: document.getElementById('upload-overlay'),
+  uploadBox: document.getElementById('upload-box'),
+  fileInput: document.getElementById('file-input'),
+  toast: document.getElementById('toast'),
+  stepDots: [0,1,2,3,4,5].map(i => document.getElementById('sd'+i)),
+  stepLines: [0,1,2,3,4].map(i => document.getElementById('sl'+i)),
+};
+
+const ctx = els.canvas.getContext('2d');
+
+// ═══════════════════════════════════════
+//  HELPERS
+// ═══════════════════════════════════════
+function img2canvas(ix, iy) {
+  return { x: ix * S.vScale + S.vx, y: iy * S.vScale + S.vy };
+}
+function canvas2img(cx, cy) {
+  return { x: (cx - S.vx) / S.vScale, y: (cy - S.vy) / S.vScale };
+}
+
+function dist(a,b) {
+  return Math.hypot(a.x - b.x, a.y - b.y);
+}
+
+// Get the 4 corners of a rectangle in image coords
+function getCorners(cx, cy, w, h, angle) {
+  const hw = w / 2, hh = h / 2;
+  const cos = Math.cos(angle), sin = Math.sin(angle);
+  const locals = [[hw,hh],[-hw,hh],[-hw,-hh],[hw,-hh]]; // BR, BL, TL, TR
+  return locals.map(([lx,ly]) => ({
+    x: cx + lx*cos - ly*sin,
+    y: cy + lx*sin + ly*cos,
+  }));
+}
+
+// Get rotation handle position (top edge midpoint)
+function getRotHandle(cx, cy, w, h, angle) {
+  const hh = h / 2;
+  return {
+    x: cx + hh * Math.sin(angle),
+    y: cy - hh * Math.cos(angle),
+  };
+}
+
+// Effective size for compass/north-indicator sizing (use max of w,h)
+function getRectSize() {
+  return Math.max(S.sqW, S.sqH);
+}
+
+// ═══════════════════════════════════════
+//  HIT TESTING (in image coords)
+// ═══════════════════════════════════════
+const HANDLE_R = 10;      // handle radius in image px (before scale)
+const CORNER_HIT_R = 14;
+
+function hitTestCorner(ix, iy) {
+  if (S.step < 2) return -1;
+  const corners = getCorners(S.sqCx, S.sqCy, S.sqW, S.sqH, S.sqAngle);
+  for (let i = 0; i < 4; i++) {
+    if (dist({x:ix,y:iy}, corners[i]) < CORNER_HIT_R / S.vScale) return i;
+  }
+  return -1;
+}
+
+function hitTestRotHandle(ix, iy) {
+  if (S.step < 2) return false;
+  const rh = getRotHandle(S.sqCx, S.sqCy, S.sqW, S.sqH, S.sqAngle);
+  return dist({x:ix,y:iy}, rh) < HANDLE_R / S.vScale;
+}
+
+function hitTestSquareBody(ix, iy) {
+  if (S.step < 2 || (S.sqW <= 0 && S.sqH <= 0)) return false;
+  // Transform point to square's local coords
+  const cos = Math.cos(-S.sqAngle), sin = Math.sin(-S.sqAngle);
+  const dx = ix - S.sqCx, dy = iy - S.sqCy;
+  const lx = dx*cos - dy*sin;
+  const ly = dx*sin + dy*cos;
+  const hw = S.sqW / 2, hh = S.sqH / 2;
+  return Math.abs(lx) <= hw && Math.abs(ly) <= hh;
+}
+
+function hitTestNorthHandle(ix, iy) {
+  if (S.step < 3) return false;
+  const sz = getRectSize();
+  const ringR = sz / 2 + 30;
+  const outerR = ringR + 16;
+  const d = dist({x:ix,y:iy}, {x:S.sqCx, y:S.sqCy});
+  return d > 5 / S.vScale && d < outerR + 10;
+}
+
+function hitTestMountain(ix, iy) {
+  if (S.step < 4 || (S.sqW <= 0 && S.sqH <= 0)) return -1;
+  const radius = getRectSize() * S.gridScale / 2;
+  const dx = ix - S.sqCx;
+  const dy = iy - S.sqCy;
+  const dist = Math.hypot(dx, dy);
+  if (dist < 5 || dist > radius + 10) return -1;
+  // Angle from north (0° = up in image coords, CW+)
+  let angle = Math.atan2(dx, -dy) * 180 / Math.PI; // 0°=north, CW+
+  // Adjust for northAngle: convert to compass-aligned coords
+  angle = angle - S.northAngle * 180 / Math.PI;
+  // Normalize to [0, 360)
+  angle = ((angle % 360) + 360) % 360;
+  // Each mountain spans 15°, centered on its angle
+  // Mountain 0 (子) is at 0°; Mountain 1 (癸) at 15°, etc.
+  let idx = Math.round(angle / 15) % 24;
+  return idx;
+}
+
+// ═══════════════════════════════════════
+//  DRAWING
+// ═══════════════════════════════════════
+function draw() {
+  const c = els.canvas;
+  ctx.clearRect(0, 0, c.width, c.height);
+
+  // Background
+  ctx.fillStyle = '#faf7f0';
+  ctx.fillRect(0, 0, c.width, c.height);
+
+  if (!S.img) return;
+
+  // ── Image ──
+  ctx.save();
+  ctx.translate(S.vx, S.vy);
+  ctx.scale(S.vScale, S.vScale);
+  ctx.drawImage(S.img, 0, 0, S.imgW, S.imgH);
+  ctx.restore();
+
+  // ── Overlays (square / compass / grid) ──
+  ctx.save();
+  if (S.step >= 4) ctx.globalAlpha = 1 - S.overlayTransparency;
+
+  if (S.step >= 2 && (S.sqW > 0 || S.sqH > 0)) {
+    drawSquare1();
+  }
+
+  if (S.step >= 3) {
+    drawNorthIndicator();
+  }
+  ctx.restore(); // end overlay alpha
+
+  // ── 24 Mountains compass (independent transparency) ──
+  if (S.step >= 4) {
+    ctx.save();
+    ctx.globalAlpha = 1 - S.compassTransparency;
+    draw24Mountains();
+    ctx.restore();
+  }
+}
+
+function drawSquare1() {
+  const {sqCx:cx, sqCy:cy, sqW:w, sqH:h, sqAngle:angle} = S;
+  const corners = getCorners(cx, cy, w, h, angle);
+  const rh = getRotHandle(cx, cy, w, h, angle);
+
+  // ── Square fill ──
+  ctx.save();
+  ctx.translate(S.vx, S.vy);
+  ctx.scale(S.vScale, S.vScale);
+
+  // Fill (85% transparent scarlet = 15% opacity)
+  ctx.fillStyle = 'rgba(220, 30, 50, 0.15)';
+  ctx.strokeStyle = 'rgba(220, 30, 50, 0.85)';
+  ctx.lineWidth = 2.5 / S.vScale;
+  ctx.setLineDash([]);
+
+  ctx.beginPath();
+  ctx.moveTo(corners[0].x, corners[0].y);
+  for (let i = 1; i < 4; i++) ctx.lineTo(corners[i].x, corners[i].y);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  // ── Diagonal guide lines ──
+  ctx.strokeStyle = 'rgba(220, 30, 50, 0.3)';
+  ctx.lineWidth = 1 / S.vScale;
+  ctx.setLineDash([6/S.vScale, 6/S.vScale]);
+  ctx.beginPath();
+  ctx.moveTo(corners[0].x, corners[0].y);
+  ctx.lineTo(corners[2].x, corners[2].y);
+  ctx.moveTo(corners[1].x, corners[1].y);
+  ctx.lineTo(corners[3].x, corners[3].y);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // ── Center crosshair ──
+  const chSize = 12 / S.vScale;
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = 1.8 / S.vScale;
+  ctx.beginPath();
+  ctx.moveTo(cx - chSize, cy); ctx.lineTo(cx + chSize, cy);
+  ctx.moveTo(cx, cy - chSize); ctx.lineTo(cx, cy + chSize);
+  ctx.stroke();
+  // Center dot
+  ctx.fillStyle = '#ffffff';
+  ctx.beginPath();
+  ctx.arc(cx, cy, 3.5/S.vScale, 0, Math.PI*2);
+  ctx.fill();
+
+  // ── Corner handles (only in step 2 — square adjustment mode) ──
+  if (S.step === 2) {
+    const hSize = 8 / S.vScale;
+    for (let i = 0; i < 4; i++) {
+      const isHover = S.hoverCorner === i || (S.dragMode === 'scale' && S.dragCorner === i);
+      ctx.fillStyle = isHover ? '#ff5566' : 'rgba(60,30,20,0.85)';
+      ctx.strokeStyle = isHover ? '#ff3048' : 'rgba(80,60,40,0.6)';
+      ctx.lineWidth = 2 / S.vScale;
+      ctx.beginPath();
+      ctx.rect(corners[i].x - hSize, corners[i].y - hSize, hSize*2, hSize*2);
+      ctx.fill();
+      ctx.stroke();
+    }
+
+    // ── Rotation handle (only in step 2) ──
+    const isHover = S.hoverMode === 'rotate' || S.dragMode === 'rotate';
+    const rHr = HANDLE_R / S.vScale;
+
+    // Connecting line
+    ctx.strokeStyle = 'rgba(60,30,20,0.4)';
+    ctx.lineWidth = 1.5 / S.vScale;
+    ctx.setLineDash([4/S.vScale, 4/S.vScale]);
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(rh.x, rh.y);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Handle circle
+    ctx.fillStyle = isHover ? '#ff5566' : 'rgba(255,220,220,0.9)';
+    ctx.strokeStyle = isHover ? '#ff3048' : 'rgba(200,150,150,0.8)';
+    ctx.lineWidth = 2 / S.vScale;
+    ctx.beginPath();
+    ctx.arc(rh.x, rh.y, rHr, 0, Math.PI*2);
+    ctx.fill();
+    ctx.stroke();
+
+    // Rotation icon (small arrow arc)
+    ctx.strokeStyle = '#6b5040';
+    ctx.lineWidth = 1.5 / S.vScale;
+    ctx.beginPath();
+    ctx.arc(rh.x, rh.y, rHr*0.45, -Math.PI*0.7, Math.PI*0.7);
+    ctx.stroke();
+    // Arrowhead
+    const ax = rh.x + rHr*0.45 * Math.cos(Math.PI*0.7);
+    const ay = rh.y + rHr*0.45 * Math.sin(Math.PI*0.7);
+    ctx.fillStyle = '#6b5040';
+    ctx.beginPath();
+    ctx.moveTo(ax, ay);
+    ctx.lineTo(ax - 3/S.vScale, ay - 3/S.vScale);
+    ctx.lineTo(ax + 3/S.vScale, ay - 3/S.vScale);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  // ── Size label ──
+  ctx.fillStyle = 'rgba(60,30,20,0.7)';
+  ctx.font = `${12/S.vScale}px -apple-system,"PingFang SC",sans-serif`;
+  ctx.textAlign = 'center';
+  const labelY = cy - h/2 - 18/S.vScale;
+  ctx.fillText(`${Math.round(w)}×${Math.round(h)} px`, cx, labelY);
+
+  ctx.restore();
+}
+
+function drawNorthIndicator() {
+  const {sqCx:cx, sqCy:cy, northAngle:a} = S;
+  const sz = getRectSize();
+
+  ctx.save();
+  ctx.translate(S.vx, S.vy);
+  ctx.scale(S.vScale, S.vScale);
+
+  const ringR = sz/2 + 30;       // inner rotating compass radius
+  const outerR = ringR + 16;       // fixed outer ring
+
+  // ── Fixed outer ring (reference) ──
+  ctx.strokeStyle = 'rgba(160,140,110,0.5)';
+  ctx.lineWidth = 2 / S.vScale;
+  ctx.beginPath();
+  ctx.arc(cx, cy, outerR, 0, Math.PI*2);
+  ctx.stroke();
+
+  // Fixed-top marker (image "up" indicator)
+  const topY = cy - outerR;
+  ctx.fillStyle = 'rgba(160,140,110,0.7)';
+  ctx.beginPath();
+  ctx.moveTo(cx, topY - 10/S.vScale);
+  ctx.lineTo(cx - 7/S.vScale, topY + 2/S.vScale);
+  ctx.lineTo(cx + 7/S.vScale, topY + 2/S.vScale);
+  ctx.closePath();
+  ctx.fill();
+
+  // ── Rotating compass disc ──
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(a);   // compass rotates with north angle
+
+  // Disc background
+  ctx.fillStyle = 'rgba(250,245,235,0.55)';
+  ctx.beginPath();
+  ctx.arc(0, 0, ringR, 0, Math.PI*2);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(180,150,110,0.7)';
+  ctx.lineWidth = 2 / S.vScale;
+  ctx.stroke();
+
+  // Inner ring
+  ctx.strokeStyle = 'rgba(180,150,110,0.35)';
+  ctx.lineWidth = 1 / S.vScale;
+  ctx.beginPath();
+  ctx.arc(0, 0, ringR - 8/S.vScale, 0, Math.PI*2);
+  ctx.stroke();
+
+  // Tick marks every 5° (rotating with compass)
+  for (let d = 0; d < 360; d += 5) {
+    const rad = d * Math.PI / 180;
+    const cos = Math.cos(rad), sin = Math.sin(rad);
+    const isCardinal = d % 90 === 0;
+    const isIntercardinal = d % 45 === 0 && !isCardinal;
+    const isMajor = d % 15 === 0;
+    const inner = ringR - (isCardinal ? 16 : isIntercardinal ? 12 : isMajor ? 9 : 5);
+    const outer = ringR;
+    ctx.strokeStyle = isCardinal ? 'rgba(180,30,30,0.8)' :
+                      isIntercardinal ? 'rgba(140,100,60,0.65)' :
+                      'rgba(160,130,90,0.4)';
+    ctx.lineWidth = (isCardinal ? 2.2 : isIntercardinal ? 1.5 : 0.8) / S.vScale;
+    ctx.beginPath();
+    ctx.moveTo(inner * sin, -inner * cos);
+    ctx.lineTo(outer * sin, -outer * cos);
+    ctx.stroke();
+  }
+
+  // Cardinal labels (rotating with compass)
+  const labels = [
+    {d:0,   t:'北', c:'#b52330'},
+    {d:45,  t:'东北',c:'#8c6b4a'},
+    {d:90,  t:'东', c:'#6b5040'},
+    {d:135, t:'东南',c:'#8c6b4a'},
+    {d:180, t:'南', c:'#6b5040'},
+    {d:225, t:'西南',c:'#8c6b4a'},
+    {d:270, t:'西', c:'#6b5040'},
+    {d:315, t:'西北',c:'#8c6b4a'},
+  ];
+  const labelR = ringR - 24/S.vScale;
+  const labelSize = 10.5 / S.vScale;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  for (const l of labels) {
+    const rad = l.d * Math.PI / 180;
+    const lx = labelR * Math.sin(rad);
+    const ly = -labelR * Math.cos(rad);
+    ctx.fillStyle = l.c;
+    ctx.font = `bold ${l.d%90===0 ? labelSize*1.25 : labelSize}px -apple-system,"PingFang SC","Microsoft YaHei",sans-serif`;
+    ctx.fillText(l.t, lx, ly);
+  }
+
+  // North pointer arrow (fixed on compass, points to "北" at 0°)
+  const arrowLen = ringR + 20/S.vScale;
+  // Shaft — from center outward
+  ctx.strokeStyle = '#b52330';
+  ctx.lineWidth = 2.5 / S.vScale;
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.lineTo(0, -arrowLen);
+  ctx.stroke();
+
+  // Arrowhead
+  const ahSize = 10 / S.vScale;
+  ctx.fillStyle = '#b52330';
+  ctx.beginPath();
+  ctx.moveTo(0, -arrowLen);
+  ctx.lineTo(-ahSize*0.55, -arrowLen + ahSize);
+  ctx.lineTo(ahSize*0.55, -arrowLen + ahSize);
+  ctx.closePath();
+  ctx.fill();
+
+  // Center dot
+  ctx.fillStyle = '#b52330';
+  ctx.beginPath();
+  ctx.arc(0, 0, 4/S.vScale, 0, Math.PI*2);
+  ctx.fill();
+
+  ctx.restore(); // end rotating group
+
+  // ── Fixed south marker on outer ring ──
+  {
+    const sy = cy + outerR + 14/S.vScale;
+    ctx.fillStyle = 'rgba(100,80,60,0.5)';
+    ctx.font = `${10/S.vScale}px -apple-system,"PingFang SC",sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText('南', cx, sy);
+  }
+
+  ctx.restore();
+}
+
+function draw24Mountains() {
+  const {sqCx:cx, sqCy:cy, northAngle:a, gridScale} = S;
+  const R = getRectSize() * gridScale / 2; // main compass radius
+
+  ctx.save();
+  ctx.translate(S.vx, S.vy);
+  ctx.scale(S.vScale, S.vScale);
+
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(a);
+
+  // ── Two-layer ring radii ──
+  //   ringMain  ←→ ringMid  : outer layer = 24 mountains
+  //   ringMid   ←→ ringInner: inner layer = 8 trigrams
+  //   ringInner ←→ 0        : center
+  const ringMain   = R;
+  const ringMid    = R * 0.52; // divider between 24-mountain & 8-trigram layers
+  const ringInner  = R * 0.10; // tiny center hub
+
+  // ═══════════════════════════════════════
+  // 1. Solid background disc
+  // ═══════════════════════════════════════
+  ctx.fillStyle = '#fcf9f2';
+  ctx.beginPath();
+  ctx.arc(0, 0, ringMain + 4, 0, Math.PI*2);
+  ctx.fill();
+
+  // ═══════════════════════════════════════
+  // 2. Two ring circles
+  // ═══════════════════════════════════════
+  ctx.strokeStyle = '#3d2e1f';
+  ctx.lineWidth = 2.0 / S.vScale;
+  ctx.beginPath(); ctx.arc(0, 0, ringMain, 0, Math.PI*2); ctx.stroke();
+
+  ctx.lineWidth = 1.5 / S.vScale;
+  ctx.beginPath(); ctx.arc(0, 0, ringMid, 0, Math.PI*2); ctx.stroke();
+
+  ctx.lineWidth = 1.0 / S.vScale;
+  ctx.strokeStyle = '#8c7b6b';
+  ctx.beginPath(); ctx.arc(0, 0, ringInner, 0, Math.PI*2); ctx.stroke();
+
+  // ═══════════════════════════════════════
+  // 3. Inner ring: 8 trigram sector fills (五行配色)
+  // ═══════════════════════════════════════
+  const trigramSectors = [
+    {t:'坎', deg:0,   elem:'水'},  // 水 → 蓝
+    {t:'艮', deg:45,  elem:'土'},  // 土 → 棕
+    {t:'震', deg:90,  elem:'木'},  // 木 → 绿
+    {t:'巽', deg:135, elem:'木'},  // 木 → 绿
+    {t:'离', deg:180, elem:'火'},  // 火 → 红
+    {t:'坤', deg:225, elem:'土'},  // 土 → 棕
+    {t:'兑', deg:270, elem:'金'},  // 金 → 白
+    {t:'乾', deg:315, elem:'金'},  // 金 → 白
+  ];
+  for (const s of trigramSectors) {
+    const startAngle = ((s.deg - 22.5 - 90) * Math.PI / 180);
+    const endAngle   = ((s.deg + 22.5 - 90) * Math.PI / 180);
+    ctx.fillStyle = hexToRgba(ELEMENT_BG[s.elem], 0.65);
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.arc(0, 0, ringMid, startAngle, endAngle);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  // ═══════════════════════════════════════
+  // 4. Sector boundary lines
+  //    Trigram boundaries (8 lines, every 45°, at 22.5°+k*45°):
+  //      full span: ringInner → ringMain → outer ring edge
+  //    24-mountain dividers (16 lines):
+  //      outer ring only: ringMid → ringMain
+  // ═══════════════════════════════════════
+  for (let i = 0; i < 24; i++) {
+    // Each line sits at the LEFT boundary of mountain[i]:
+    //   boundary angle = mountain[i].angle - 7.5°
+    const boundaryDeg = MOUNTAINS_24[i][5] - 7.5;
+    const rad = (boundaryDeg - 90) * Math.PI / 180;
+    const cos = Math.cos(rad), sin = Math.sin(rad);
+
+    // Trigram boundaries at 22.5°+k*45° → i ∈ {2,5,8,11,14,17,20,23}
+    const isTrigram = (i % 3 === 2);
+
+    // Same dark color & weight for all divider lines
+    ctx.strokeStyle = '#3d2e1f';
+    ctx.lineWidth = 1.6 / S.vScale;
+    ctx.beginPath();
+    const lineStart = isTrigram ? ringInner : ringMid;
+    ctx.moveTo(lineStart * cos, lineStart * sin);
+    ctx.lineTo(ringMain * cos, ringMain * sin);
+    ctx.stroke();
+  }
+
+  // ═══════════════════════════════════════
+  // 4. 24 mountain names — outer ring
+  // ═══════════════════════════════════════
+  const mountainLabelR = (ringMain + ringMid) / 2;
+  const fontSize = 16 / S.vScale;
+  ctx.fillStyle = '#3d2e1f';
+  ctx.font = `600 ${fontSize}px "PingFang SC","Microsoft YaHei",sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+
+  for (let i = 0; i < 24; i++) {
+    const m = MOUNTAINS_24[i];
+    const midAngle = (m[5] - 90) * Math.PI / 180;
+    const lx = mountainLabelR * Math.cos(midAngle);
+    const ly = mountainLabelR * Math.sin(midAngle);
+    ctx.save();
+    ctx.translate(lx, ly);
+    ctx.rotate(midAngle + Math.PI/2);
+    ctx.fillText(m[0], 0, 0);
+    ctx.restore();
+  }
+
+  // ═══════════════════════════════════════
+  // 5. Eight trigram names — inner ring
+  // ═══════════════════════════════════════
+  const trigramR = (ringMid + ringInner) / 2;
+  const trigramSize = 16 / S.vScale;
+  const trigramLabels = [
+    {t:'坎', deg:0},
+    {t:'艮', deg:45},
+    {t:'震', deg:90},
+    {t:'巽', deg:135},
+    {t:'离', deg:180},
+    {t:'坤', deg:225},
+    {t:'兑', deg:270},
+    {t:'乾', deg:315},
+  ];
+  ctx.fillStyle = '#3d2e1f';
+  ctx.font = `bold ${trigramSize}px "PingFang SC","Microsoft YaHei",sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  for (const t of trigramLabels) {
+    const rad = (t.deg - 90) * Math.PI / 180;
+    const tx = trigramR * Math.cos(rad);
+    const ty = trigramR * Math.sin(rad);
+    ctx.fillText(t.t, tx, ty);
+  }
+
+  // ═══════════════════════════════════════
+  // 6. Center — simple cross + north arrow
+  // ═══════════════════════════════════════
+  const crossLen = ringInner * 0.85;
+  ctx.strokeStyle = '#3d2e1f';
+  ctx.lineWidth = 1.2 / S.vScale;
+  ctx.beginPath();
+  ctx.moveTo(0, -crossLen); ctx.lineTo(0, crossLen);
+  ctx.moveTo(-crossLen, 0); ctx.lineTo(crossLen, 0);
+  ctx.stroke();
+
+  // Red north pointer
+  ctx.fillStyle = '#b52330';
+  ctx.beginPath();
+  ctx.moveTo(0, -crossLen - 4/S.vScale);
+  ctx.lineTo(-4/S.vScale, -crossLen + 6/S.vScale);
+  ctx.lineTo(4/S.vScale, -crossLen + 6/S.vScale);
+  ctx.closePath();
+  ctx.fill();
+
+  // Center dot
+  ctx.fillStyle = '#3d2e1f';
+  ctx.beginPath();
+  ctx.arc(0, 0, 2.5/S.vScale, 0, Math.PI*2);
+  ctx.fill();
+
+  // ═══════════════════════════════════════
+  // 7. ⚠️ markers on marked mountains
+  // ═══════════════════════════════════════
+  for (const mi of S.markedMountains) {
+    if (mi < 0 || mi >= 24) continue;
+    const m = MOUNTAINS_24[mi];
+    const mRad = (m[5] - 90) * Math.PI / 180;
+    const warnR = (ringMain + ringMid) / 2; // center of outer ring
+    const wx = warnR * Math.cos(mRad);
+    const wy = warnR * Math.sin(mRad);
+
+    const glowR = ringMid * 0.12;
+    const grad = ctx.createRadialGradient(wx, wy, glowR*0.3, wx, wy, glowR);
+    grad.addColorStop(0, 'rgba(255, 200, 0, 0.5)');
+    grad.addColorStop(0.5, 'rgba(255, 140, 0, 0.25)');
+    grad.addColorStop(1, 'rgba(255, 80, 0, 0)');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(wx, wy, glowR, 0, Math.PI*2);
+    ctx.fill();
+
+    const warnSize = Math.max(14, ringMid * 0.12) / S.vScale;
+    ctx.fillStyle = '#ff9500';
+    ctx.font = `bold ${warnSize}px "PingFang SC",sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('⚠️', wx, wy);
+  }
+
+  ctx.restore(); // end rotation
+  ctx.restore(); // end image transform
+}
+
+function hexToRgba(hex, alpha) {
+  const r = parseInt(hex.slice(1,3), 16);
+  const g = parseInt(hex.slice(3,5), 16);
+  const b = parseInt(hex.slice(5,7), 16);
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
+// ═══════════════════════════════════════
+//  RESIZE
+// ═══════════════════════════════════════
+function resize() {
+  const rect = els.wrap.getBoundingClientRect();
+  els.canvas.width = rect.width * window.devicePixelRatio;
+  els.canvas.height = rect.height * window.devicePixelRatio;
+  els.canvas.style.width = rect.width + 'px';
+  els.canvas.style.height = rect.height + 'px';
+  ctx.setTransform(1,0,0,1,0,0);
+  ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+  fitImage();
+}
+
+function fitImage() {
+  if (!S.img) return;
+  const cw = els.canvas.width / window.devicePixelRatio;
+  const ch = els.canvas.height / window.devicePixelRatio;
+  const s = Math.min(cw / S.imgW, ch / S.imgH) * 0.88;
+  S.vScale = s;
+  S.vx = (cw - S.imgW * s) / 2;
+  S.vy = (ch - S.imgH * s) / 2;
+}
+
+// ═══════════════════════════════════════
+//  EVENTS
+// ═══════════════════════════════════════
+function getPos(e) {
+  const rect = els.canvas.getBoundingClientRect();
+  return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+}
+
+els.canvas.addEventListener('mousedown', e => {
+  if (e.button !== 0) { // right/middle → pan
+    if (e.button === 1 || e.button === 2) {
+      S.dragMode = 'pan';
+      S.dragStart = getPos(e);
+      S.dragState = {vx: S.vx, vy: S.vy};
+    }
+    return;
+  }
+  if (!S.img) return;
+  const pos = getPos(e);
+  const ip = canvas2img(pos.x, pos.y);
+
+  if (S.step === 2) {
+    // Check rotation handle first
+    if (hitTestRotHandle(ip.x, ip.y)) {
+      S.dragMode = 'rotate';
+      S.dragStart = ip;
+      S.dragState = {angle: S.sqAngle};
+      return;
+    }
+    // Check corner handles
+    const ci = hitTestCorner(ip.x, ip.y);
+    if (ci >= 0) {
+      S.dragMode = 'scale';
+      S.dragCorner = ci;
+      S.dragStart = ip;
+      // Anchor the opposite corner (fixed during scale)
+      const corners = getCorners(S.sqCx, S.sqCy, S.sqW, S.sqH, S.sqAngle);
+      const opp = corners[(ci + 2) % 4];
+      S.dragState = { oppCorner: {x: opp.x, y: opp.y}, angle: S.sqAngle };
+      return;
+    }
+    // Check square body
+    if (hitTestSquareBody(ip.x, ip.y)) {
+      S.dragMode = 'move';
+      S.dragStart = ip;
+      S.dragState = {cx: S.sqCx, cy: S.sqCy};
+      return;
+    }
+    // If no square exists, create one by drag
+    if (S.sqW <= 0 && S.sqH <= 0) {
+      S.dragMode = 'create';
+      S.dragStart = ip;
+      return;
+    }
+    // Else pan
+    S.dragMode = 'pan';
+    S.dragStart = pos;
+    S.dragState = {vx: S.vx, vy: S.vy};
+    return;
+  }
+
+  if (S.step === 3) {
+    // Click on compass area → start rotating
+    if (hitTestNorthHandle(ip.x, ip.y)) {
+      S.northAngle = Math.atan2(ip.x - S.sqCx, -(ip.y - S.sqCy));
+      S.dragMode = 'north';
+      S.dragStart = ip;
+      S.dragState = {angle: S.northAngle};
+      draw();
+      updateNorthDisplay();
+      return;
+    }
+    // Click outside compass → pan
+    S.dragMode = 'pan';
+    S.dragStart = pos;
+    S.dragState = {vx: S.vx, vy: S.vy};
+    return;
+  }
+
+  if (S.step === 5) {
+    const cellIdx = hitTestMountain(ip.x, ip.y);
+    if (cellIdx >= 0) {
+      if (S.markedMountains.has(cellIdx)) {
+        S.markedMountains.delete(cellIdx);
+        toast(`已取消 ${MOUNTAINS_24[cellIdx][0]}(${MOUNTAINS_24[cellIdx][2]}) 的⚠️标记`);
+      } else {
+        S.markedMountains.add(cellIdx);
+        toast(`⚠️ 已标记 ${MOUNTAINS_24[cellIdx][0]}(${MOUNTAINS_24[cellIdx][2]})`);
+      }
+      draw();
+      updateSidebar();
+      return;
+    }
+    // Click outside grid → pan
+    S.dragMode = 'pan';
+    S.dragStart = pos;
+    S.dragState = {vx: S.vx, vy: S.vy};
+    return;
+  }
+
+  // Default: pan
+  S.dragMode = 'pan';
+  S.dragStart = pos;
+  S.dragState = {vx: S.vx, vy: S.vy};
+});
+
+els.canvas.addEventListener('mousemove', e => {
+  const pos = getPos(e);
+  const ip = canvas2img(pos.x, pos.y);
+
+  // Update hover state
+  S.hoverMode = null;
+  S.hoverCorner = -1;
+  if (S.step === 2 && (S.sqW > 0 || S.sqH > 0) && !S.dragMode) {
+    if (hitTestRotHandle(ip.x, ip.y)) S.hoverMode = 'rotate';
+    else {
+      const ci = hitTestCorner(ip.x, ip.y);
+      if (ci >= 0) { S.hoverMode = 'scale'; S.hoverCorner = ci; }
+      else if (hitTestSquareBody(ip.x, ip.y)) S.hoverMode = 'move';
+    }
+  }
+  if (S.step === 3 && !S.dragMode && hitTestNorthHandle(ip.x, ip.y)) {
+    S.hoverMode = 'north';
+  }
+  if (S.step === 5 && !S.dragMode && hitTestMountain(ip.x, ip.y) >= 0) {
+    S.hoverMode = 'mark';
+  }
+
+  // Update cursor — scale mode uses corner-aware diagonal cursors
+  const curMap = {
+    rotate: 'grab', move: 'move', north: 'grab',
+    create: 'crosshair', mark: 'pointer',
+  };
+  const mode = S.dragMode || S.hoverMode;
+  const cIdx = S.dragMode === 'scale' ? S.dragCorner : (S.hoverMode === 'scale' ? S.hoverCorner : -1);
+  if (mode === 'scale' && cIdx >= 0) {
+    // corners 0(BR) & 2(TL) = NW-SE axis; 1(BL) & 3(TR) = NE-SW axis
+    els.canvas.style.cursor = [0,2].includes(cIdx) ? 'nwse-resize' : 'nesw-resize';
+  } else {
+    els.canvas.style.cursor = curMap[mode] ||
+      (S.step === 2 && S.sqW <= 0 && S.sqH <= 0 ? 'crosshair' : 'default');
+  }
+
+  // Drag actions
+  if (!S.dragMode) { draw(); return; }
+
+  if (S.dragMode === 'pan') {
+    S.vx = S.dragState.vx + (pos.x - S.dragStart.x);
+    S.vy = S.dragState.vy + (pos.y - S.dragStart.y);
+  } else if (S.dragMode === 'move') {
+    const dx = ip.x - S.dragStart.x;
+    const dy = ip.y - S.dragStart.y;
+    S.sqCx = S.dragState.cx + dx;
+    S.sqCy = S.dragState.cy + dy;
+  } else if (S.dragMode === 'rotate') {
+    const dx = ip.x - S.sqCx;
+    const dy = ip.y - S.sqCy;
+    S.sqAngle = Math.atan2(dx, -dy);
+  } else if (S.dragMode === 'scale') {
+    // Free aspect ratio — opposite corner fixed, dragged corner follows cursor
+    const opp = S.dragState.oppCorner;
+    S.sqCx = (opp.x + ip.x) / 2;
+    S.sqCy = (opp.y + ip.y) / 2;
+    const angle = S.dragState.angle;
+    const cos = Math.cos(-angle), sin = Math.sin(-angle);
+    const dx = ip.x - opp.x;
+    const dy = ip.y - opp.y;
+    const lx = dx * cos - dy * sin;
+    const ly = dx * sin + dy * cos;
+    S.sqW = Math.max(20, Math.abs(lx));
+    S.sqH = Math.max(20, Math.abs(ly));
+  } else if (S.dragMode === 'create') {
+    const dx = ip.x - S.dragStart.x;
+    const dy = ip.y - S.dragStart.y;
+    S.sqCx = S.dragStart.x + dx / 2;
+    S.sqCy = S.dragStart.y + dy / 2;
+    S.sqW = Math.max(20, Math.abs(dx));
+    S.sqH = Math.max(20, Math.abs(dy));
+    S.sqAngle = 0;
+  } else if (S.dragMode === 'north') {
+    const dx = ip.x - S.sqCx;
+    const dy = ip.y - S.sqCy;
+    if (Math.hypot(dx, dy) > 5/S.vScale) {
+      S.northAngle = Math.atan2(dx, -dy);
+    }
+  }
+
+  draw();
+});
+
+els.canvas.addEventListener('mouseup', e => {
+  if (S.dragMode === 'create' && (S.sqW > 30 || S.sqH > 30)) {
+    // Square created successfully
+    toast('✅ 范围已划定，拖拽角落缩放、顶部圆点旋转、中心拖拽移动');
+  }
+  S.dragMode = null;
+  S.dragCorner = -1;
+  updateSidebar();
+});
+
+els.canvas.addEventListener('mouseleave', () => {
+  S.dragMode = null;
+  S.dragCorner = -1;
+  S.hoverMode = null;
+  S.hoverCorner = -1;
+  draw();
+  updateSidebar();
+});
+
+els.canvas.addEventListener('wheel', e => {
+  e.preventDefault();
+  if (!S.img) return;
+  const pos = getPos(e);
+  const ip = canvas2img(pos.x, pos.y);
+
+  const zoomFactor = e.deltaY < 0 ? 1.12 : 1/1.12;
+  const newScale = Math.max(0.1, Math.min(8, S.vScale * zoomFactor));
+
+  // Zoom centered on cursor
+  S.vx = pos.x - ip.x * newScale;
+  S.vy = pos.y - ip.y * newScale;
+  S.vScale = newScale;
+
+  draw();
+}, {passive: false});
+
+els.canvas.addEventListener('contextmenu', e => e.preventDefault());
+
+// ── Keyboard ──
+window.addEventListener('keydown', e => {
+  if (S.step >= 2 && (S.sqW > 0 || S.sqH > 0)) {
+    const step = e.shiftKey ? 10 : 1;
+    if (e.key === 'ArrowLeft') { S.sqCx -= step; draw(); }
+    if (e.key === 'ArrowRight') { S.sqCx += step; draw(); }
+    if (e.key === 'ArrowUp') { S.sqCy -= step; draw(); }
+    if (e.key === 'ArrowDown') { S.sqCy += step; draw(); }
+    if (e.key === '[' || e.key === '-') { const d=step*2; S.sqW=Math.max(20,S.sqW-d); S.sqH=Math.max(20,S.sqH-d); draw(); updateSidebar(); }
+    if (e.key === ']' || e.key === '=') { S.sqW+=step*2; S.sqH+=step*2; draw(); updateSidebar(); }
+  }
+  if (S.step >= 3) {
+    if (e.key === 'ArrowLeft' && e.ctrlKey) { S.northAngle -= Math.PI/180; normalizeNorth(); draw(); updateNorthDisplay(); }
+    if (e.key === 'ArrowRight' && e.ctrlKey) { S.northAngle += Math.PI/180; normalizeNorth(); draw(); updateNorthDisplay(); }
+  }
+});
+
+function normalizeNorth() {
+  while (S.northAngle > Math.PI) S.northAngle -= 2*Math.PI;
+  while (S.northAngle < -Math.PI) S.northAngle += 2*Math.PI;
+}
+
+// ═══════════════════════════════════════
+//  UPLOAD
+// ═══════════════════════════════════════
+els.uploadBox.addEventListener('click', () => els.fileInput.click());
+
+els.fileInput.addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (file) loadImage(file);
+});
+
+// Drag & drop
+els.canvas.addEventListener('dragover', e => { e.preventDefault(); });
+els.canvas.addEventListener('drop', e => {
+  e.preventDefault();
+  const file = e.dataTransfer.files[0];
+  if (file && (file.type === 'image/jpeg' || file.type === 'image/png')) {
+    loadImage(file);
+  }
+});
+els.wrap.addEventListener('dragover', e => { e.preventDefault(); });
+els.wrap.addEventListener('drop', e => {
+  e.preventDefault();
+  const file = e.dataTransfer.files[0];
+  if (file && (file.type === 'image/jpeg' || file.type === 'image/png')) {
+    loadImage(file);
+  }
+});
+
+function loadImage(file) {
+  const reader = new FileReader();
+  reader.onload = ev => {
+    const img = new Image();
+    img.onload = () => {
+      S.img = img;
+      S.imgW = img.naturalWidth;
+      S.imgH = img.naturalHeight;
+      S.step = 2;
+      S.sqW = 0; S.sqH = 0;
+      S.sqAngle = 0;
+      S.northAngle = 0;
+      S.gridScale = 1.0;
+      S.overlayTransparency = 0.9;
+      S.compassTransparency = 0.1;
+      S.markedMountains.clear();
+      fitImage();
+      draw();
+      updateUI();
+      toast('📐 请在户型图上点击并拖动，划定户型主体范围');
+    };
+    img.src = ev.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+// ═══════════════════════════════════════
+//  STEP MANAGEMENT
+// ═══════════════════════════════════════
+function goToStep(s) {
+  S.step = Math.max(2, Math.min(6, s));
+  S.dragMode = null;
+  S.hoverMode = null;
+  S.hoverCorner = -1;
+  updateUI();
+  draw();
+}
+
+function updateUI() {
+  // Step dots
+  for (let i = 0; i < 6; i++) {
+    els.stepDots[i].className = 'step-dot' +
+      (S.step === i + 1 ? ' active' : '') +
+      (S.step > i + 1 ? ' done' : '');
+    if (i < 5) els.stepLines[i].className = 'step-line' + (S.step > i + 1 ? ' done' : '');
+  }
+
+  // Upload overlay
+  els.uploadOverlay.style.display = S.step === 1 ? 'flex' : 'none';
+
+  updateSidebar();
+}
+
+function updateSidebar() {
+  const sb = els.sidebar;
+
+  if (S.step === 2) {
+    const angleDeg = Math.round(S.sqAngle * 180 / Math.PI);
+    sb.innerHTML = `
+      <h3>📐 第二步：划定户型范围</h3>
+      <p class="desc">拖拽<strong>中心</strong>移动、拖拽<strong>四角</strong>自由缩放（不锁比例）、拖拽<strong>顶部○圆点</strong>旋转。可用 <kbd>↑↓←→</kbd> 微调位置，<kbd>[</kbd><kbd>]</kbd> 微调大小。</p>
+      ${(S.sqW > 0 || S.sqH > 0) ? `
+      <div class="info-card">
+        <div>中心点: <span class="val">(${Math.round(S.sqCx)}, ${Math.round(S.sqCy)})</span></div>
+        <div>宽×高: <span class="val">${Math.round(S.sqW)}×${Math.round(S.sqH)} px</span></div>
+        <div>旋转: <span class="val">${angleDeg}°</span></div>
+      </div>
+      <div class="ctrl-row">
+        <button class="secondary btn-act" onclick="resetSquare()"><span class="arr">🔄</span> 重新划定</button>
+        <button class="primary btn-act" onclick="goToStep(3)">确认范围 <span class="arr">→</span></button>
+      </div>
+      ` : `<p class="desc" style="color:#ff5566">👆 在户型图上点击并拖动以划定范围</p>`}
+    `;
+  } else if (S.step === 3) {
+    const deg = Math.round(S.northAngle * 180 / Math.PI);
+    const absDeg = ((deg % 360) + 360) % 360;
+    const dirName = absDeg <= 1 || absDeg >= 359 ? '正北' :
+      absDeg < 90 ? `北偏东 ${absDeg}°` :
+      absDeg === 90 ? '正东' :
+      absDeg < 180 ? `东偏南 ${absDeg-90}°` :
+      absDeg === 180 ? '正南' :
+      absDeg < 270 ? `南偏西 ${absDeg-180}°` :
+      absDeg === 270 ? '正西' :
+      `北偏西 ${360-absDeg}°`;
+    sb.innerHTML = `
+      <h3>🧭 第三步：标记正北方</h3>
+      <p class="desc">拖拽红色<strong>北 ↑</strong>箭头指向正北方向，或在图上点击设置方向。精度到 1°。</p>
+      <div class="info-card">
+        <div>正北方位: <span class="val" id="north-dir-name">${dirName}</span></div>
+        <div>角度: <span class="val" id="north-deg-display">${absDeg}°</span>（0°=图上正上方）</div>
+      </div>
+      <div class="ctrl-group">
+        <label>微调角度</label>
+        <div class="ctrl-row">
+          <button class="secondary" onclick="nudgeNorth(-1)">−1°</button>
+          <input type="number" id="north-deg" value="${absDeg}" min="0" max="359"
+            onchange="setNorthDeg(this.value)" style="width:70px">
+          <button class="secondary" onclick="nudgeNorth(1)">+1°</button>
+        </div>
+        <input type="range" min="0" max="359" value="${absDeg}"
+          oninput="setNorthDeg(this.value)" style="margin-top:4px">
+      </div>
+      <div class="ctrl-row" style="margin-top:8px">
+        <button class="secondary btn-act" onclick="goToStep(2)"><span class="arr">←</span> 返回调整范围</button>
+        <button class="primary btn-act" onclick="goToStep(4)">生成二十四山 <span class="arr">→</span></button>
+      </div>
+    `;
+  } else if (S.step === 4) {
+    sb.innerHTML = `
+      <h3>🏯 第四步：二十四山</h3>
+      <p class="desc">二十四山罗盘已按正北方位对齐。每山15°，共24个方位。八字带圆圈的山（子丑寅卯…）为地支正山。</p>
+      <div class="ctrl-group">
+        <label>罗盘大小: <span id="grid-scale-display">${(S.gridScale*100).toFixed(0)}%</span></label>
+        <input type="range" min="30" max="300" value="${S.gridScale*100}"
+          oninput="setGridScale(this.value)">
+        <label style="margin-top:4px">辅助线透明度: <span id="overlay-transparency-display">${Math.round(S.overlayTransparency*100)}%</span></label>
+        <input type="range" min="0" max="100" value="${Math.round(S.overlayTransparency*100)}"
+          oninput="setOverlayTransparency(this.value)">
+        <label style="margin-top:4px">罗盘透明度: <span id="compass-transparency-display">${Math.round(S.compassTransparency*100)}%</span></label>
+        <input type="range" min="0" max="100" value="${Math.round(S.compassTransparency*100)}"
+          oninput="setCompassTransparency(this.value)">
+      </div>
+      <div class="ctrl-row" style="margin-top:12px">
+        <button class="secondary btn-act" onclick="setGridScale(100)"><span class="arr">↺</span> 默认大小</button>
+      </div>
+      <div class="ctrl-row" style="margin-top:8px">
+        <button class="secondary btn-act" onclick="goToStep(3)"><span class="arr">←</span> 返回调整北方</button>
+        <button class="primary btn-act" onclick="goToStep(5)">⚠️ 标记模式 <span class="arr">→</span></button>
+      </div>
+      ${build24MountainsLegendHTML()}
+    `;
+  } else if (S.step === 5) {
+    const markedList = [...S.markedMountains].sort();
+    sb.innerHTML = `
+      <h3>⚠️ 第五步：标记问题山向</h3>
+      <p class="desc">点击二十四山罗盘上的任意山向来标记⚠️警告。再次点击取消标记。</p>
+      <div class="ctrl-group">
+        <label>辅助线透明度: <span id="overlay-transparency-display">${Math.round(S.overlayTransparency*100)}%</span></label>
+        <input type="range" min="0" max="100" value="${Math.round(S.overlayTransparency*100)}"
+          oninput="setOverlayTransparency(this.value)">
+        <label style="margin-top:4px">罗盘透明度: <span id="compass-transparency-display">${Math.round(S.compassTransparency*100)}%</span></label>
+        <input type="range" min="0" max="100" value="${Math.round(S.compassTransparency*100)}"
+          oninput="setCompassTransparency(this.value)">
+      </div>
+      ${markedList.length > 0 ? `
+      <div class="info-card">
+        <div style="margin-bottom:6px;font-weight:600">已标记山向 (${markedList.length}/24)：</div>
+        ${markedList.map(mi => {
+          const m = MOUNTAINS_24[mi];
+          return `<div style="display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid var(--border)">
+            <span style="font-size:1.3em">⚠️</span>
+            <span style="font-weight:600;color:${ELEMENT_TEXT[m[3]]}">${m[0]}</span>
+            <span style="color:var(--text-dim);font-size:.78em">${m[1]} ${m[2]} ${m[3]}</span>
+            <button class="secondary" style="margin-left:auto;padding:2px 8px;font-size:.7rem"
+              onclick="toggleMark(${mi})">✕</button>
+          </div>`;
+        }).join('')}
+      </div>
+      ` : `<p class="desc" style="color:var(--text-dim)">尚未标记任何山向，点击罗盘开始标记</p>`}
+      <div class="ctrl-row">
+        ${markedList.length > 0 ? `<button class="secondary btn-act" onclick="clearAllMarks()">🗑 清除全部标记</button>` : ''}
+      </div>
+      <div class="ctrl-row" style="margin-top:8px">
+        <button class="secondary btn-act" onclick="goToStep(4)"><span class="arr">←</span> 返回调整二十四山</button>
+        <button class="primary btn-act" onclick="goToStep(6)">生成汇总 <span class="arr">📋</span></button>
+      </div>
+      ${build24MountainsLegendHTML()}
+    `;
+  } else if (S.step === 6) {
+    const markedList = [...S.markedMountains].sort();
+    sb.innerHTML = `
+      <h3>📋 第六步：风水分析汇总</h3>
+      <p class="desc">基于户型范围、正北方位和问题山向标记的汇总报告。</p>
+      <div class="info-card">
+        <div>户型中心: <span class="val">(${Math.round(S.sqCx)}, ${Math.round(S.sqCy)})</span></div>
+        <div>宽×高: <span class="val">${Math.round(S.sqW)}×${Math.round(S.sqH)} px</span></div>
+        <div>旋转角度: <span class="val">${Math.round(S.sqAngle*180/Math.PI)}°</span></div>
+        <div>正北方位: <span class="val">${((Math.round(S.northAngle*180/Math.PI)%360)+360)%360}°</span></div>
+        <div>问题山向: <span class="val">${markedList.length}/24</span></div>
+      </div>
+      ${markedList.length > 0 ? `
+        <div style="margin-top:8px;font-size:.82rem;font-weight:600;color:var(--gold)">⚠️ 标记山向详情</div>
+        ${markedList.map(mi => {
+          const m = MOUNTAINS_24[mi];
+          const elem = m[3];
+          const d = BAGUA_DETAIL[m[1]] || {};
+          const branchNote = m[4] ? ` · 地支:${m[4]}` : '';
+          return `<div style="display:flex;gap:8px;padding:8px 10px;background:${hexToRgba(ELEMENT_BG[elem],0.7)};border-radius:6px;margin-bottom:5px;align-items:center">
+            <span style="font-size:1.4em;color:${ELEMENT_TEXT[elem]}">⚠️</span>
+            <div style="flex:1;font-size:.76rem;line-height:1.5;color:${ELEMENT_TEXT[elem]}">
+              <div><strong>${m[0]}</strong> · ${m[1]}卦 · ${m[2]} · ${elem} · ${d.nature||''}${branchNote}</div>
+              <div style="opacity:.75">${d.family||''} · ${d.meaning||''} · ${d.animal||''} · ${d.bodyPart||''}</div>
+            </div>
+          </div>`;
+        }).join('')}
+      ` : `<p class="desc" style="margin-top:12px;color:var(--text-dim)">✅ 未标记任何问题山向，二十四山布局良好。</p>`}
+      <div class="ctrl-row" style="margin-top:12px">
+        <button class="secondary btn-act" onclick="goToStep(5)"><span class="arr">←</span> 返回标记模式</button>
+        <button class="primary btn-act" onclick="copyPNG()">📋 复制PNG</button>
+      </div>
+    `;
+  }
+}
+
+// ── Sidebar button actions ──
+function copyPNG() {
+  const c = els.canvas;
+  c.toBlob(blob => {
+    if (!blob) { toast('❌ 生成图片失败'); return; }
+    navigator.clipboard.write([new ClipboardItem({'image/png': blob})]).then(() => {
+      toast('✅ PNG已复制到剪贴板');
+    }).catch(() => {
+      toast('❌ 复制失败，请重试');
+    });
+  }, 'image/png');
+}
+
+function resetSquare() {
+  S.sqW = 0; S.sqH = 0;
+  S.sqAngle = 0;
+  S.sqCx = S.imgW / 2;
+  S.sqCy = S.imgH / 2;
+  S.gridScale = 0.5;
+  S.overlayTransparency = 0.9;
+  S.markedMountains.clear();
+  S.dragMode = null;
+  draw();
+  updateSidebar();
+  toast('🔄 请在图上重新拖动划定范围');
+}
+
+function nudgeNorth(d) {
+  S.northAngle += d * Math.PI / 180;
+  normalizeNorth();
+  draw();
+  updateNorthDisplay();
+}
+
+function setNorthDeg(v) {
+  const deg = parseInt(v) || 0;
+  S.northAngle = deg * Math.PI / 180;
+  normalizeNorth();
+  draw();
+  updateNorthDisplay();
+}
+
+function updateNorthDisplay() {
+  const absDeg = ((Math.round(S.northAngle * 180 / Math.PI) % 360) + 360) % 360;
+  const dirName = absDeg <= 1 || absDeg >= 359 ? '正北' :
+    absDeg < 90 ? `北偏东 ${absDeg}°` :
+    absDeg === 90 ? '正东' :
+    absDeg < 180 ? `东偏南 ${absDeg-90}°` :
+    absDeg === 180 ? '正南' :
+    absDeg < 270 ? `南偏西 ${absDeg-180}°` :
+    absDeg === 270 ? '正西' :
+    `北偏西 ${360-absDeg}°`;
+  const dirEl = document.getElementById('north-dir-name');
+  const degEl = document.getElementById('north-deg-display');
+  const inputEl = document.getElementById('north-deg');
+  const sliderEl = document.querySelector('#sidebar input[type=range]');
+  if (dirEl) dirEl.textContent = dirName;
+  if (degEl) degEl.textContent = absDeg + '°';
+  if (inputEl) inputEl.value = absDeg;
+  if (sliderEl) sliderEl.value = absDeg;
+}
+
+function setGridScale(v) {
+  S.gridScale = parseInt(v) / 100;
+  if (S.step >= 4) {
+    draw();
+    // Direct DOM update — avoids destroying slider during drag
+    const display = document.getElementById('grid-scale-display');
+    if (display) display.textContent = Math.round(S.gridScale * 100) + '%';
+  }
+}
+
+function setOverlayTransparency(v) {
+  S.overlayTransparency = parseInt(v) / 100;
+  draw();
+  // Direct DOM update — avoids destroying slider during drag
+  const display = document.getElementById('overlay-transparency-display');
+  if (display) display.textContent = Math.round(S.overlayTransparency * 100) + '%';
+}
+
+function setCompassTransparency(v) {
+  S.compassTransparency = parseInt(v) / 100;
+  draw();
+  const display = document.getElementById('compass-transparency-display');
+  if (display) display.textContent = Math.round(S.compassTransparency * 100) + '%';
+}
+
+function toggleMark(bi) {
+  if (S.markedMountains.has(bi)) {
+    S.markedMountains.delete(bi);
+  } else {
+    S.markedMountains.add(bi);
+  }
+  draw();
+  updateSidebar();
+}
+
+function clearAllMarks() {
+  S.markedMountains.clear();
+  draw();
+  updateSidebar();
+  toast('已清除全部⚠️标记');
+}
+
+function build24MountainsLegendHTML() {
+  // Group mountains by trigram
+  const trigramGroups = [
+    {t:'坎', emoji:'💧', mountains:['壬','子','癸']},
+    {t:'艮', emoji:'⛰️', mountains:['丑','艮','寅']},
+    {t:'震', emoji:'🌳', mountains:['甲','卯','乙']},
+    {t:'巽', emoji:'🌿', mountains:['辰','巽','巳']},
+    {t:'离', emoji:'🔥', mountains:['丙','午','丁']},
+    {t:'坤', emoji:'🏔️', mountains:['未','坤','申']},
+    {t:'兑', emoji:'💍', mountains:['庚','酉','辛']},
+    {t:'乾', emoji:'🥇', mountains:['戌','乾','亥']},
+  ];
+  const cards = trigramGroups.map(g => {
+    const elem = WUXING[g.t] || '土';
+    const bg = hexToRgba(ELEMENT_BG[elem], 0.7);
+    const tc = ELEMENT_TEXT[elem];
+    const d = BAGUA_DETAIL[g.t] || {};
+    return `<div style="display:flex;align-items:center;gap:8px;padding:7px 10px;background:${bg};border-radius:6px;margin-bottom:5px">
+      <span style="font-size:1.2em;width:26px;text-align:center">${g.emoji}</span>
+      <span style="font-weight:600;font-size:.85rem;color:${tc};width:22px">${g.t}</span>
+      <span style="font-size:.8rem;color:${tc};letter-spacing:.08em">${g.mountains.join(' ')}</span>
+      <span style="flex:1;font-size:.7rem;color:${tc};opacity:.7;text-align:right">${elem} · ${d.nature||''}</span>
+    </div>`;
+  }).join('');
+  return `<div id="legend" style="margin-top:8px">
+    <h3 style="margin-bottom:8px;color:var(--gold);font-size:.88rem">📖 二十四山图例 (每卦三山)</h3>
+    ${cards}
+  </div>`;
+}
+
+function buildLegendHTML() {
+  // Detail cards ordered by Luoshu number (1-9)
+  const ordered = [...BAGUA].sort((a,b) => a[5] - b[5]);
+  const cards = ordered.map(b => {
+    const name = b[2], trigram = b[3]||'◎', dir = b[4];
+    const elem = WUXING[name] || '土';
+    const d = BAGUA_DETAIL[name] || {};
+    const bg = hexToRgba(ELEMENT_BG[elem], 0.7);
+    const tc = ELEMENT_TEXT[elem];
+    const emoji = ELEMENT_EMOJI[name] || '';
+    if (name === '中宫') {
+      return `<div style="display:flex;align-items:center;gap:8px;padding:7px 10px;background:${bg};border-radius:6px;margin-bottom:5px">
+        <span style="font-size:1.2em;width:26px;text-align:center">${emoji}</span>
+        <div style="flex:1;font-size:.74rem;line-height:1.5;color:${tc}">
+          <strong>中宫</strong> <span style="opacity:.7">中央 · 土</span>
+          <div style="opacity:.75">${d.meaning||'家运总枢纽'}</div>
+        </div>
+      </div>`;
+    }
+    return `<div style="display:flex;align-items:center;gap:8px;padding:7px 10px;background:${bg};border-radius:6px;margin-bottom:5px">
+      <span style="font-size:1.2em;width:26px;text-align:center">${emoji}</span>
+      <span style="font-size:1.1em;width:22px;text-align:center;color:${tc}">${trigram}</span>
+      <div style="flex:1;font-size:.73rem;line-height:1.5;color:${tc}">
+        <div><strong>${name}</strong> <span style="opacity:.65">${dir} · ${elem} · ${d.nature||''} · ${d.trait||''}</span></div>
+        <div style="opacity:.7">${d.family||''} · ${d.meaning||''} · ${d.animal||''} · ${d.bodyPart||''}</div>
+      </div>
+    </div>`;
+  }).join('');
+  return `<div id="legend" style="margin-top:8px">
+    <h3 style="margin-bottom:8px;color:var(--gold);font-size:.88rem">📖 八卦方位图例</h3>
+    ${cards}
+  </div>`;
+}
+
+// ═══════════════════════════════════════
+//  TOAST
+// ═══════════════════════════════════════
+let toastTimer;
+function toast(msg) {
+  const t = els.toast;
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+// ═══════════════════════════════════════
+//  INIT
+// ═══════════════════════════════════════
+function init() {
+  resize();
+  updateUI();
+  draw();
+}
+
+window.addEventListener('resize', () => {
+  resize();
+  draw();
+});
+
+// Expose for inline onclick
+window.goToStep = goToStep;
+window.resetSquare = resetSquare;
+window.nudgeNorth = nudgeNorth;
+window.setNorthDeg = setNorthDeg;
+window.setGridScale = setGridScale;
+window.setOverlayTransparency = setOverlayTransparency;
+window.setCompassTransparency = setCompassTransparency;
+window.copyPNG = copyPNG;
+window.toggleMark = toggleMark;
+window.clearAllMarks = clearAllMarks;
+
+init();
+</script>
+</body>
+</html>
