@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>福音 · 风水户型分析 — 二十四山</title>
+<title>福音 · 风水户型分析 — 二十四山 v2.3</title>
 <style>
   :root {
     --bg: #faf7f0;
@@ -41,7 +41,7 @@
     z-index: 10;
     flex-shrink: 0;
   }
-  #header h1 { font-size: 1.15rem; font-weight: 600; letter-spacing: .04em; }
+  #header h1 { font-size: 1.15rem; font-weight: 600; letter-spacing: .04em; flex: 1; }
   #header h1 span { color: var(--accent-glow); }
 
   #steps {
@@ -62,6 +62,11 @@
   .step-dot.done { background: var(--step-done); color: #fff; }
   .step-line { width: 28px; height: 2px; background: var(--border); border-radius: 1px; }
   .step-line.done { background: var(--step-done); }
+
+  #header-right { display: flex; gap: 8px; flex: 1; justify-content: flex-end; }
+  #steps .step-dot { cursor: pointer; }
+  #steps .step-dot:hover { transform: scale(1.12); }
+  .step-dot:not(.active):not(.done):hover { background: #c8baa0; color: #fff; }
 
   /* ── main area ── */
   #main {
@@ -190,10 +195,12 @@
   /* ── upload overlay ── */
   #upload-overlay {
     position: absolute; inset: 0;
-    display: flex; align-items: center; justify-content: center;
+    display: flex; flex-direction: column; gap: 14px;
+    align-items: center; justify-content: center;
     background: rgba(60,40,20,.45);
     z-index: 20;
   }
+  #upload-overlay.opaque { background: var(--bg); }
   #upload-box {
     background: var(--surface);
     border: 2px dashed var(--border);
@@ -218,6 +225,75 @@
   }
   #toast.show { opacity: 1; }
 
+  /* ── history modal ── */
+  .modal-overlay {
+    position: fixed; inset: 0;
+    background: rgba(60,40,20,.55);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 100;
+  }
+  .modal {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    width: min(560px, 92vw);
+    max-height: 82vh;
+    display: flex; flex-direction: column;
+    box-shadow: 0 12px 40px rgba(40,25,10,.35);
+  }
+  .modal-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .modal-head h2 { font-size: 1.05rem; }
+  #history-list {
+    overflow-y: auto;
+    padding: 12px 18px;
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  .hist-item {
+    display: flex; gap: 12px; align-items: center;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px;
+  }
+  .hist-thumb {
+    width: 72px; height: 54px;
+    object-fit: cover;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    background: #fff;
+    flex-shrink: 0;
+  }
+  .hist-thumb-empty { background: var(--surface); }
+  .hist-info { flex: 1; min-width: 0; }
+  .hist-name {
+    font-weight: 600; font-size: .85rem;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .hist-meta { font-size: .72rem; color: var(--text-dim); margin: 3px 0 7px; }
+  .hist-actions { display: flex; gap: 6px; }
+  .hist-actions button { padding: 4px 10px; font-size: .72rem; }
+  button.danger { background: #f0dcd6; color: #7a1a10; }
+  button.danger:hover { background: #e4c6bc; }
+  .hist-empty { font-size: .82rem; color: var(--text-dim); text-align: center; padding: 24px 0; line-height: 1.6; }
+
+  /* compact history items inside the step-1 sidebar */
+  #sidebar .hist-item { padding: 8px; }
+  #sidebar .hist-thumb { width: 56px; height: 42px; }
+  #sidebar .hist-actions { flex-wrap: wrap; }
+  #sidebar .hist-actions button { padding: 3px 8px; font-size: .68rem; }
+  #sidebar .hist-meta { margin: 2px 0 5px; }
+  .modal-foot {
+    display: flex; justify-content: flex-end; gap: 8px;
+    padding: 12px 18px;
+    border-top: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+
   @media (max-width: 768px) {
     #main { flex-direction: column; }
     #sidebar { width: 100%; max-height: 220px; flex-shrink: 0; }
@@ -228,19 +304,23 @@
 
 <!-- HEADER -->
 <div id="header">
-  <h1>🏠 福音 · 风水户型分析 <span style="font-size:.65rem;color:var(--text-dim);font-weight:400;margin-left:6px">v2.1</span></h1>
+  <h1>🏠 福音 · 风水户型分析 <span style="font-size:.65rem;color:var(--text-dim);font-weight:400;margin-left:6px">v2.3</span></h1>
   <div id="steps">
-    <div class="step-dot active" id="sd0">1</div>
+    <div class="step-dot active" id="sd0" title="1 · 上传户型图">1</div>
     <div class="step-line" id="sl0"></div>
-    <div class="step-dot" id="sd1">2</div>
+    <div class="step-dot" id="sd1" title="2 · 划定户型范围">2</div>
     <div class="step-line" id="sl1"></div>
-    <div class="step-dot" id="sd2">3</div>
+    <div class="step-dot" id="sd2" title="3 · 标记正北方">3</div>
     <div class="step-line" id="sl2"></div>
-    <div class="step-dot" id="sd3">4</div>
+    <div class="step-dot" id="sd3" title="4 · 二十四山罗盘">4</div>
     <div class="step-line" id="sl3"></div>
-    <div class="step-dot" id="sd4">5</div>
+    <div class="step-dot" id="sd4" title="5 · 标记问题山向">5</div>
     <div class="step-line" id="sl4"></div>
-    <div class="step-dot" id="sd5">6</div>
+    <div class="step-dot" id="sd5" title="6 · 汇总报告">6</div>
+  </div>
+  <div id="header-right">
+    <button class="secondary" style="padding:6px 12px;font-size:.78rem" onclick="saveSnapshot()" title="保存当前进度为存档">💾 保存</button>
+    <button class="secondary" style="padding:6px 12px;font-size:.78rem" onclick="showHistoryModal()" title="查看历史存档">📂 历史</button>
   </div>
 </div>
 
@@ -248,19 +328,35 @@
 <div id="main">
   <div id="canvas-wrap">
     <canvas id="c"></canvas>
+
+    <!-- UPLOAD OVERLAY (step 1) — scoped to canvas so the sidebar stays usable -->
+    <div id="upload-overlay">
+      <div id="upload-box">
+        <h2>📐 上传户型图</h2>
+        <p>支持 JPG / PNG 格式，点击或拖拽上传</p>
+        <input type="file" id="file-input" accept="image/jpeg,image/png" hidden>
+      </div>
+      <button id="upload-cancel" class="secondary" style="display:none" onclick="cancelUpload()">← 取消，返回当前进度</button>
+    </div>
   </div>
 
   <!-- SIDEBAR -->
   <div id="sidebar">
     <div id="sidebar-content"></div>
   </div>
+</div>
 
-  <!-- UPLOAD OVERLAY (step 0) -->
-  <div id="upload-overlay">
-    <div id="upload-box">
-      <h2>📐 上传户型图</h2>
-      <p>支持 JPG / PNG 格式，点击或拖拽上传</p>
-      <input type="file" id="file-input" accept="image/jpeg,image/png" hidden>
+<!-- HISTORY MODAL -->
+<div id="history-modal" class="modal-overlay" style="display:none">
+  <div class="modal">
+    <div class="modal-head">
+      <h2>📂 历史存档</h2>
+      <button class="secondary" style="padding:5px 12px;font-size:.75rem" onclick="hideHistoryModal()">✕ 关闭</button>
+    </div>
+    <div id="history-list"></div>
+    <div class="modal-foot">
+      <button class="secondary" onclick="hideHistoryModal()">继续当前进度</button>
+      <button class="primary" onclick="startNewAnalysis()">➕ 开始新分析</button>
     </div>
   </div>
 </div>
@@ -389,6 +485,12 @@ const S = {
   // Compass (罗盘) opacity — independent of overlay
   compassTransparency: 0.1,   // 0=fully opaque, 1=fully transparent; default 10%
 
+  // Persistence (local archive)
+  imgBlob: null,              // Blob/File of current image (for IndexedDB)
+  thumb: '',                  // small thumbnail dataURL
+  autosaveImageStored: false, // whether autosave record already holds current image blob
+  uploadOverlayShown: false,  // step-1 overlay shown while a session exists (cancellable)
+
   // Interaction
   dragMode: null,     // 'move' | 'scale' | 'rotate' | 'north' | 'pan' | 'create'
   dragCorner: -1,     // which corner for scale drag
@@ -409,6 +511,7 @@ const els = {
   sidebar: document.getElementById('sidebar-content'),
   uploadOverlay: document.getElementById('upload-overlay'),
   uploadBox: document.getElementById('upload-box'),
+  uploadCancel: document.getElementById('upload-cancel'),
   fileInput: document.getElementById('file-input'),
   toast: document.getElementById('toast'),
   stepDots: [0,1,2,3,4,5].map(i => document.getElementById('sd'+i)),
@@ -556,6 +659,9 @@ function draw() {
     draw24Mountains();
     ctx.restore();
   }
+
+  // Debounced autosave — state changes all funnel through draw()
+  scheduleAutosave();
 }
 
 function drawSquare1() {
@@ -1314,6 +1420,16 @@ els.wrap.addEventListener('drop', e => {
   }
 });
 
+// Upload overlay itself also accepts drag & drop (it covers the canvas on step 1)
+els.uploadOverlay.addEventListener('dragover', e => { e.preventDefault(); });
+els.uploadOverlay.addEventListener('drop', e => {
+  e.preventDefault();
+  const file = e.dataTransfer.files[0];
+  if (file && (file.type === 'image/jpeg' || file.type === 'image/png')) {
+    loadImage(file);
+  }
+});
+
 function loadImage(file) {
   const reader = new FileReader();
   reader.onload = ev => {
@@ -1322,6 +1438,10 @@ function loadImage(file) {
       S.img = img;
       S.imgW = img.naturalWidth;
       S.imgH = img.naturalHeight;
+      S.imgBlob = file;
+      S.thumb = '';
+      S.autosaveImageStored = false;
+      S.uploadOverlayShown = false;
       S.step = 2;
       S.sqW = 0; S.sqH = 0;
       S.sqAngle = 0;
@@ -1333,6 +1453,7 @@ function loadImage(file) {
       fitImage();
       draw();
       updateUI();
+      makeThumbnail().then(t => { S.thumb = t; scheduleAutosave(); });
       toast('📐 请在户型图上点击并拖动，划定户型主体范围');
     };
     img.src = ev.target.result;
@@ -1352,6 +1473,276 @@ function goToStep(s) {
   draw();
 }
 
+// ═══════════════════════════════════════
+//  STEP DOTS — DIRECT NAVIGATION
+// ═══════════════════════════════════════
+function jumpToStep(n) {
+  if (n === 1) {
+    // 上传页：已有进度时以遮罩形式唤出，可取消返回
+    if (S.img) { S.uploadOverlayShown = true; updateUI(); }
+    return;
+  }
+  if (n === 2 && !S.img) { toast('📐 请先上传户型图'); return; }
+  if (n >= 3 && (S.sqW <= 0 || S.sqH <= 0)) { toast('⚠️ 请先划定户型范围'); return; }
+  S.uploadOverlayShown = false;
+  goToStep(n);
+}
+
+function cancelUpload() {
+  S.uploadOverlayShown = false;
+  updateUI();
+}
+
+// ═══════════════════════════════════════
+//  LOCAL PERSISTENCE (IndexedDB)
+//   records: {id, name, savedAt, step, state, thumb, auto}
+//   images:  {id, blob} — floor-plan image per record
+// ═══════════════════════════════════════
+const DB_NAME = 'fengshui-app-db';
+const DB_VERSION = 1;
+const AUTOSAVE_ID = '__autosave__';
+let db = null;
+
+function openDB() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, DB_VERSION);
+    req.onupgradeneeded = e => {
+      const d = e.target.result;
+      if (!d.objectStoreNames.contains('records')) d.createObjectStore('records', { keyPath: 'id' });
+      if (!d.objectStoreNames.contains('images')) d.createObjectStore('images', { keyPath: 'id' });
+    };
+    req.onsuccess = e => { db = e.target.result; resolve(db); };
+    req.onerror = () => reject(req.error);
+  });
+}
+function idbPut(store, val) {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(store, 'readwrite');
+    tx.objectStore(store).put(val);
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+  });
+}
+function idbGet(store, key) {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(store, 'readonly');
+    const rq = tx.objectStore(store).get(key);
+    rq.onsuccess = () => resolve(rq.result);
+    rq.onerror = () => reject(rq.error);
+  });
+}
+function idbGetAll(store) {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(store, 'readonly');
+    const rq = tx.objectStore(store).getAll();
+    rq.onsuccess = () => resolve(rq.result);
+    rq.onerror = () => reject(rq.error);
+  });
+}
+function idbDelete(store, key) {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(store, 'readwrite');
+    tx.objectStore(store).delete(key);
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+function collectState() {
+  return {
+    imgW: S.imgW, imgH: S.imgH,
+    sqCx: S.sqCx, sqCy: S.sqCy, sqW: S.sqW, sqH: S.sqH,
+    sqAngle: S.sqAngle, northAngle: S.northAngle,
+    gridScale: S.gridScale,
+    overlayTransparency: S.overlayTransparency,
+    compassTransparency: S.compassTransparency,
+    markedMountains: [...S.markedMountains],
+  };
+}
+
+function restoreState(st) {
+  if (!st) return;
+  S.sqCx = st.sqCx ?? 0; S.sqCy = st.sqCy ?? 0;
+  S.sqW = st.sqW ?? 0; S.sqH = st.sqH ?? 0;
+  S.sqAngle = st.sqAngle ?? 0;
+  S.northAngle = st.northAngle ?? 0;
+  S.gridScale = st.gridScale ?? 1.0;
+  S.overlayTransparency = st.overlayTransparency ?? 0.9;
+  S.compassTransparency = st.compassTransparency ?? 0.1;
+  S.markedMountains = new Set(st.markedMountains || []);
+}
+
+// ── Autosave (single rolling record; resumes on reopen) ──
+let autosaveTimer = null;
+function scheduleAutosave() {
+  clearTimeout(autosaveTimer);
+  autosaveTimer = setTimeout(saveAutosave, 500);
+}
+async function saveAutosave() {
+  if (!S.img || !db) return;
+  try {
+    // Image blob only needs writing once per session (state is small JSON)
+    if (!S.autosaveImageStored && S.imgBlob) {
+      await idbPut('images', { id: AUTOSAVE_ID, blob: S.imgBlob });
+      S.autosaveImageStored = true;
+    }
+    await idbPut('records', {
+      id: AUTOSAVE_ID, name: '最近进度', savedAt: Date.now(),
+      step: S.step, state: collectState(), thumb: S.thumb || '', auto: true,
+    });
+    // 若第一步侧栏正在展示历史列表，刷新（自动保存可能刚创建新记录）
+    if (document.getElementById('sidebar-history')) refreshHistory();
+  } catch (e) { /* 自动保存失败不影响使用 */ }
+}
+
+// ── Explicit snapshot ──
+async function saveSnapshot() {
+  if (!db) { toast('❌ 当前浏览器不支持本地存档'); return; }
+  if (!S.img) { toast('📐 请先上传户型图再保存'); return; }
+  const def = `户型 ${fmtDate(Date.now()).slice(0, 10)} · 第${S.step}步`;
+  const name = prompt('📁 存档名称：', def);
+  if (name === null) return;
+  const id = 'rec_' + Date.now();
+  try {
+    const thumb = S.thumb || await makeThumbnail();
+    await idbPut('images', { id, blob: S.imgBlob });
+    await idbPut('records', {
+      id, name: name.trim() || def, savedAt: Date.now(),
+      step: S.step, state: collectState(), thumb, auto: false,
+    });
+    refreshHistory();
+    toast('✅ 已保存存档');
+  } catch (e) {
+    toast('❌ 保存失败：' + e);
+  }
+}
+
+function makeThumbnail() {
+  return new Promise(resolve => {
+    try {
+      const w = 160, h = Math.max(1, Math.round(160 * S.imgH / S.imgW));
+      const c = document.createElement('canvas');
+      c.width = w; c.height = h;
+      c.getContext('2d').drawImage(S.img, 0, 0, w, h);
+      resolve(c.toDataURL('image/jpeg', 0.72));
+    } catch (e) { resolve(''); }
+  });
+}
+
+// ── Load / manage records ──
+async function loadRecord(id) {
+  const rec = await idbGet('records', id).catch(() => null);
+  if (!rec) { toast('❌ 存档不存在'); return; }
+  const imgRec = await idbGet('images', id).catch(() => null);
+  if (!imgRec || !imgRec.blob) { toast('❌ 存档图片缺失'); return; }
+  const url = URL.createObjectURL(imgRec.blob);
+  const img = new Image();
+  img.onload = () => {
+    S.img = img;
+    S.imgW = img.naturalWidth;
+    S.imgH = img.naturalHeight;
+    S.imgBlob = imgRec.blob;
+    S.thumb = rec.thumb || '';
+    S.autosaveImageStored = false;
+    restoreState(rec.state);
+    S.step = Math.max(2, Math.min(6, rec.step || 2));
+    if (S.step >= 3 && (S.sqW <= 0 || S.sqH <= 0)) S.step = 2; // 前置条件校验
+    S.dragMode = null; S.hoverMode = null; S.hoverCorner = -1;
+    S.uploadOverlayShown = false;
+    fitImage();
+    draw();
+    updateUI();
+    hideHistoryModal();
+    if (!S.thumb) makeThumbnail().then(t => { S.thumb = t; scheduleAutosave(); });
+    scheduleAutosave();
+    toast(`📂 已载入「${rec.name}」`);
+  };
+  img.onerror = () => { URL.revokeObjectURL(url); toast('❌ 图片加载失败'); };
+  img.src = url;
+}
+
+async function deleteRecord(id) {
+  const rec = await idbGet('records', id).catch(() => null);
+  if (!rec) return;
+  const label = rec.auto ? '自动保存的最近进度' : `存档「${rec.name}」`;
+  if (!confirm(`确定删除${label}？此操作不可恢复。`)) return;
+  await idbDelete('records', id);
+  await idbDelete('images', id);
+  refreshHistory();
+  toast('🗑 已删除');
+}
+
+async function renameRecord(id) {
+  const rec = await idbGet('records', id).catch(() => null);
+  if (!rec) return;
+  const name = prompt('✏️ 重命名存档：', rec.name);
+  if (name === null || !name.trim()) return;
+  rec.name = name.trim();
+  await idbPut('records', rec);
+  refreshHistory();
+}
+
+async function renderHistory() {
+  renderHistoryInto(document.getElementById('history-list'));
+}
+async function renderHistoryInto(list) {
+  if (!list) return;
+  if (!db) {
+    list.innerHTML = `<p class="hist-empty">当前浏览器不支持本地存档（IndexedDB 不可用）</p>`;
+    return;
+  }
+  const recs = (await idbGetAll('records')).sort((a, b) => b.savedAt - a.savedAt);
+  if (!recs.length) {
+    list.innerHTML = `<p class="hist-empty">暂无存档。完成分析后点击右上角 💾 保存；<br>未保存的进度也会自动留存（🔁 自动保存）。</p>`;
+    return;
+  }
+  list.innerHTML = recs.map(rec => `
+    <div class="hist-item">
+      ${rec.thumb
+        ? `<img class="hist-thumb" src="${rec.thumb}" alt="">`
+        : `<div class="hist-thumb hist-thumb-empty"></div>`}
+      <div class="hist-info">
+        <div class="hist-name">${rec.auto ? '🔁 ' : ''}${escapeHtml(rec.name)}</div>
+        <div class="hist-meta">${fmtDate(rec.savedAt)} · 第 ${rec.step} 步${rec.auto ? ' · 自动保存' : ''}</div>
+        <div class="hist-actions">
+          <button class="primary" onclick="loadRecord('${rec.id}')">📂 载入</button>
+          ${rec.auto ? '' : `<button class="secondary" onclick="renameRecord('${rec.id}')">✏️ 重命名</button>`}
+          <button class="secondary danger" onclick="deleteRecord('${rec.id}')">🗑 删除</button>
+        </div>
+      </div>
+    </div>`).join('');
+}
+
+// 同时刷新弹窗与侧栏两个历史列表
+function refreshHistory() {
+  renderHistory();
+  const sh = document.getElementById('sidebar-history');
+  if (sh) renderHistoryInto(sh);
+}
+
+function showHistoryModal() {
+  renderHistory();
+  document.getElementById('history-modal').style.display = 'flex';
+}
+function hideHistoryModal() {
+  document.getElementById('history-modal').style.display = 'none';
+}
+function startNewAnalysis() {
+  if (S.img && !confirm('开始新分析？当前进度将被替换（已保存的存档不受影响）。')) return;
+  hideHistoryModal();
+  S.uploadOverlayShown = true;
+  updateUI();
+}
+
+function fmtDate(ts) {
+  const d = new Date(ts);
+  const p = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
 function updateUI() {
   // Step dots
   for (let i = 0; i < 6; i++) {
@@ -1361,14 +1752,28 @@ function updateUI() {
     if (i < 5) els.stepLines[i].className = 'step-line' + (S.step > i + 1 ? ' done' : '');
   }
 
-  // Upload overlay
-  els.uploadOverlay.style.display = S.step === 1 ? 'flex' : 'none';
+  // Upload overlay (step 1, or explicitly invoked via step-dot 1)
+  els.uploadOverlay.style.display = (S.step === 1 || S.uploadOverlayShown) ? 'flex' : 'none';
+  // 已有进度时完全遮住当前图，只显示上传界面
+  els.uploadOverlay.classList.toggle('opaque', !!(S.uploadOverlayShown && S.img));
+  els.uploadCancel.style.display = (S.uploadOverlayShown && S.img) ? 'inline-block' : 'none';
 
   updateSidebar();
 }
 
 function updateSidebar() {
   const sb = els.sidebar;
+
+  // 第一步（或唤出上传遮罩时）：右侧栏展示历史存档
+  if (S.step === 1 || S.uploadOverlayShown) {
+    sb.innerHTML = `
+      <h3>📂 历史存档</h3>
+      <p class="desc">过往保存的分析记录；未保存的进度也会自动留存（🔁 最近进度）。</p>
+      <div id="sidebar-history"></div>
+    `;
+    renderHistoryInto(document.getElementById('sidebar-history'));
+    return;
+  }
 
   if (S.step === 2) {
     const angleDeg = Math.round(S.sqAngle * 180 / Math.PI);
@@ -1701,7 +2106,9 @@ function toast(msg) {
 // ═══════════════════════════════════════
 //  INIT
 // ═══════════════════════════════════════
-function init() {
+async function init() {
+  // 打开本地存档库（失败则无持久化，其余功能不受影响）
+  try { await openDB(); } catch (e) {}
   resize();
   updateUI();
   draw();
@@ -1712,8 +2119,18 @@ window.addEventListener('resize', () => {
   draw();
 });
 
+// 离开页面前立即落盘一次自动保存
+window.addEventListener('beforeunload', () => {
+  if (S.img) saveAutosave();
+});
+
+// 右上角步骤序号可直接跳转
+els.stepDots.forEach((el, i) => el.addEventListener('click', () => jumpToStep(i + 1)));
+
 // Expose for inline onclick
 window.goToStep = goToStep;
+window.jumpToStep = jumpToStep;
+window.cancelUpload = cancelUpload;
 window.resetSquare = resetSquare;
 window.nudgeNorth = nudgeNorth;
 window.setNorthDeg = setNorthDeg;
@@ -1723,6 +2140,13 @@ window.setCompassTransparency = setCompassTransparency;
 window.copyPNG = copyPNG;
 window.toggleMark = toggleMark;
 window.clearAllMarks = clearAllMarks;
+window.saveSnapshot = saveSnapshot;
+window.showHistoryModal = showHistoryModal;
+window.hideHistoryModal = hideHistoryModal;
+window.startNewAnalysis = startNewAnalysis;
+window.loadRecord = loadRecord;
+window.renameRecord = renameRecord;
+window.deleteRecord = deleteRecord;
 
 init();
 </script>
