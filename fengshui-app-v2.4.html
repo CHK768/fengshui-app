@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>福音 · 风水户型分析 — 二十四山 v2.3</title>
+<title>福音 · 风水户型分析 — 二十四山 v2.4</title>
 <style>
   :root {
     --bg: #faf7f0;
@@ -91,7 +91,7 @@
     width: 300px;
     background: var(--surface);
     border-left: 1px solid var(--border);
-    padding: 20px;
+    padding: 14px 16px;
     display: flex;
     flex-direction: column;
     gap: 16px;
@@ -100,21 +100,23 @@
     z-index: 5;
   }
   #sidebar h3 {
-    font-size: .95rem; font-weight: 600; color: var(--accent-glow);
-    margin-bottom: 2px;
+    font-size: .88rem; font-weight: 600; color: var(--accent-glow);
+    margin-bottom: 3px; line-height: 1.3;
   }
   #sidebar p.desc {
-    font-size: .82rem; color: var(--text-dim); line-height: 1.5;
+    font-size: .78rem; color: var(--text-dim); line-height: 1.45;
   }
+  /* 大功能区块之间的间距（同一功能内部的组件保持紧凑） */
+  .sec { margin-top: 16px; }
 
   .ctrl-group {
-    display: flex; flex-direction: column; gap: 8px;
+    display: flex; flex-direction: column; gap: 5px;
   }
   .ctrl-group label {
-    font-size: .78rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: .06em;
+    font-size: .72rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: .04em;
   }
   .ctrl-row {
-    display: flex; gap: 8px; align-items: center;
+    display: flex; gap: 6px; align-items: center;
   }
 
   button {
@@ -140,9 +142,9 @@
     align-items: center;
     justify-content: center;
     gap: 5px;
-    padding: 9px 12px;
-    min-height: 40px;
-    font-size: .84rem;
+    padding: 7px 10px;
+    min-height: 34px;
+    font-size: .8rem;
     font-weight: 600;
     border-radius: 6px;
     border: none;
@@ -159,19 +161,19 @@
     width: 100%; accent-color: var(--accent);
   }
   input[type=number] {
-    width: 70px; padding: 6px 8px;
+    width: 62px; padding: 4px 6px;
     background: var(--bg); color: var(--text);
     border: 1px solid var(--border); border-radius: 4px;
-    font-size: .85rem; text-align: center; font-family: inherit;
+    font-size: .8rem; text-align: center; font-family: inherit;
   }
 
   .info-card {
     background: var(--bg);
     border: 1px solid var(--border);
     border-radius: 8px;
-    padding: 12px 14px;
-    font-size: .82rem;
-    line-height: 1.6;
+    padding: 9px 11px;
+    font-size: .78rem;
+    line-height: 1.5;
   }
   .info-card .val { color: var(--accent-glow); font-weight: 700; }
 
@@ -304,7 +306,7 @@
 
 <!-- HEADER -->
 <div id="header">
-  <h1>🏠 福音 · 风水户型分析 <span style="font-size:.65rem;color:var(--text-dim);font-weight:400;margin-left:6px">v2.3</span></h1>
+  <h1>🏠 福音 · 风水户型分析 <span style="font-size:.65rem;color:var(--text-dim);font-weight:400;margin-left:6px">v2.4</span></h1>
   <div id="steps">
     <div class="step-dot active" id="sd0" title="1 · 上传户型图">1</div>
     <div class="step-line" id="sl0"></div>
@@ -485,6 +487,21 @@ const S = {
   // Compass (罗盘) opacity — independent of overlay
   compassTransparency: 0.1,   // 0=fully opaque, 1=fully transparent; default 10%
 
+  // 原图复制图层（v2.4，第三步起）——把原图再叠一层，可旋转/缩放/平移/调透明度。
+  // 用途：同一张图里既有户型图又有整层平面图、北箭头只标在整层图上时，
+  // 把图层里的户型轮廓对齐到原图整层平面中的户型位置，即可换算出户型朝向。
+  // 图层内容可裁剪：crop={sx,sy,sw,sh} 图像坐标，null=整图。
+  copyLayer: null,   // {cx,cy,angle,scale,transparency,visible,crop} | null
+                     // cx,cy=图层中心(图像坐标)；angle=顺时针弧度；scale=相对原图倍率(0.1~20)；
+                     // transparency=0不透明~1全透明；crop=null整图或裁剪区域
+
+  // 裁剪模式（第二/三步）：框选区域
+  cropMode: false,   // true=正在框选/待确认
+  cropRect: null,    // {x,y,w,h} 原图像素坐标，待确认的裁剪框
+
+  // 图像调整（v2.4 第二步）：裁剪/旋转原图（非破坏性画布空间变换，状态坐标始终留在原图空间）
+  imgTrans: { crop: null, angle: 0 },   // crop={sx,sy,sw,sh} 原图像素坐标；angle=顺时针弧度
+
   // Persistence (local archive)
   imgBlob: null,              // Blob/File of current image (for IndexedDB)
   thumb: '',                  // small thumbnail dataURL
@@ -523,15 +540,64 @@ const ctx = els.canvas.getContext('2d');
 // ═══════════════════════════════════════
 //  HELPERS
 // ═══════════════════════════════════════
+// ── 图像空间变换（裁剪+旋转，非破坏性） ──
+// 原图坐标 → 变换后坐标（裁剪：平移；旋转：绕可见区域中心顺时针）
+function imgTransApply(p) {
+  const T = S.imgTrans;
+  const ox = T.crop ? T.crop.sx : 0;
+  const oy = T.crop ? T.crop.sy : 0;
+  const cw = T.crop ? T.crop.sw : S.imgW;
+  const ch = T.crop ? T.crop.sh : S.imgH;
+  const cos = Math.cos(T.angle), sin = Math.sin(T.angle);
+  const x = p.x - ox - cw / 2, y = p.y - oy - ch / 2;
+  return { x: x * cos - y * sin + cw / 2, y: x * sin + y * cos + ch / 2 };
+}
+function imgTransApplyInv(p) {
+  const T = S.imgTrans;
+  const ox = T.crop ? T.crop.sx : 0;
+  const oy = T.crop ? T.crop.sy : 0;
+  const cw = T.crop ? T.crop.sw : S.imgW;
+  const ch = T.crop ? T.crop.sh : S.imgH;
+  const cos = Math.cos(-T.angle), sin = Math.sin(-T.angle);
+  const x = p.x - cw / 2, y = p.y - ch / 2;
+  return { x: x * cos - y * sin + cw / 2 + ox, y: x * sin + y * cos + ch / 2 + oy };
+}
+// 画布 CTM：设置后即可直接用原图坐标绘制（所有图层/辅助线共用，保证整体一起旋转裁剪）
+function applyImgSpace() {
+  ctx.translate(S.vx, S.vy);
+  ctx.scale(S.vScale, S.vScale);
+  const T = S.imgTrans;
+  const ox = T.crop ? T.crop.sx : 0;
+  const oy = T.crop ? T.crop.sy : 0;
+  const cw = T.crop ? T.crop.sw : S.imgW;
+  const ch = T.crop ? T.crop.sh : S.imgH;
+  ctx.translate(-ox, -oy);
+  ctx.translate(cw / 2, ch / 2);
+  ctx.rotate(T.angle);
+  ctx.translate(-cw / 2, -ch / 2);
+}
+
 function img2canvas(ix, iy) {
-  return { x: ix * S.vScale + S.vx, y: iy * S.vScale + S.vy };
+  const p = imgTransApply({ x: ix, y: iy });
+  return { x: p.x * S.vScale + S.vx, y: p.y * S.vScale + S.vy };
 }
 function canvas2img(cx, cy) {
-  return { x: (cx - S.vx) / S.vScale, y: (cy - S.vy) / S.vScale };
+  const p = imgTransApplyInv({ x: (cx - S.vx) / S.vScale, y: (cy - S.vy) / S.vScale });
+  return { x: p.x, y: p.y };
 }
 
 function dist(a,b) {
   return Math.hypot(a.x - b.x, a.y - b.y);
+}
+
+// 点到线段的距离
+function pointSegDist(px, py, x1, y1, x2, y2) {
+  const dx = x2 - x1, dy = y2 - y1;
+  const len2 = dx * dx + dy * dy;
+  if (len2 === 0) return Math.hypot(px - x1, py - y1);
+  let t = ((px - x1) * dx + (py - y1) * dy) / len2;
+  t = Math.max(0, Math.min(1, t));
+  return Math.hypot(px - (x1 + t * dx), py - (y1 + t * dy));
 }
 
 // Get the 4 corners of a rectangle in image coords
@@ -591,13 +657,70 @@ function hitTestSquareBody(ix, iy) {
   return Math.abs(lx) <= hw && Math.abs(ly) <= hh;
 }
 
+// 正北箭头命中：只有箭杆（中心→尖端）和箭头本身可以抓取旋转，罗盘其它部分不响应
 function hitTestNorthHandle(ix, iy) {
   if (S.step < 3) return false;
   const sz = getRectSize();
   const ringR = sz / 2 + 30;
-  const outerR = ringR + 16;
-  const d = dist({x:ix,y:iy}, {x:S.sqCx, y:S.sqCy});
-  return d > 5 / S.vScale && d < outerR + 10;
+  const arrowLen = ringR + 20 / S.vScale;   // 与 drawNorthIndicator 中箭杆长度一致
+  const sin = Math.sin(S.northAngle), cos = Math.cos(S.northAngle);
+  const tipX = S.sqCx + arrowLen * sin;     // 北向角度 a 的方向 = (sin a, −cos a)
+  const tipY = S.sqCy - arrowLen * cos;
+  // 箭杆（含中心起点）
+  if (pointSegDist(ix, iy, S.sqCx, S.sqCy, tipX, tipY) <= 10 / S.vScale) return true;
+  // 箭头头部
+  if (dist({x:ix, y:iy}, {x:tipX, y:tipY}) <= 14 / S.vScale) return true;
+  return false;
+}
+
+// 复制图层：当前内容尺寸（裁剪后按裁剪尺寸）
+function copyLayerSize() {
+  const L = S.copyLayer;
+  if (!L) return { w: 0, h: 0 };
+  return { w: L.crop ? L.crop.sw : S.imgW, h: L.crop ? L.crop.sh : S.imgH };
+}
+
+// 原图坐标 → 图层局部坐标（第三步裁剪框选以图层为基准）
+function imgToLayerLocal(ix, iy) {
+  const L = S.copyLayer;
+  const cos = Math.cos(-L.angle), sin = Math.sin(-L.angle);
+  const dx = ix - L.cx, dy = iy - L.cy;
+  return { x: (dx * cos - dy * sin) / L.scale, y: (dx * sin + dy * cos) / L.scale };
+}
+
+// 裁剪框四角命中：0=右下 1=左下 2=左上 3=右上（cp 与 rect 在同一坐标系）
+function cropRectCornerHit(cp, r, hitR) {
+  const corners = [
+    { x: r.x + r.w, y: r.y + r.h },
+    { x: r.x,       y: r.y + r.h },
+    { x: r.x,       y: r.y },
+    { x: r.x + r.w, y: r.y },
+  ];
+  for (let i = 0; i < 4; i++) {
+    if (dist(cp, corners[i]) < hitR) return i;
+  }
+  return -1;
+}
+
+// 复制图层：点是否在图层矩形内（仅第三步、图层可见时有效）
+function copyLayerBodyHit(ix, iy) {
+  const L = S.copyLayer;
+  if (!L || !L.visible || S.step !== 3 || S.cropMode) return false;
+  const { w, h } = copyLayerSize();
+  const cos = Math.cos(-L.angle), sin = Math.sin(-L.angle);
+  const dx = ix - L.cx, dy = iy - L.cy;
+  const lx = (dx * cos - dy * sin) / L.scale;
+  const ly = (dx * sin + dy * cos) / L.scale;
+  return Math.abs(lx) <= w / 2 && Math.abs(ly) <= h / 2;
+}
+
+// 复制图层：旋转手柄（图层顶部中点，画布坐标约13px半径）
+function copyLayerRotHandleHit(ix, iy) {
+  const L = S.copyLayer;
+  if (!L || !L.visible || S.step !== 3 || S.cropMode) return false;
+  const { w, h } = copyLayerSize();
+  const rh = getRotHandle(L.cx, L.cy, w * L.scale, h * L.scale, L.angle);
+  return dist({x:ix, y:iy}, rh) < 13 / S.vScale;
 }
 
 function hitTestMountain(ix, iy) {
@@ -634,9 +757,13 @@ function draw() {
 
   // ── Image ──
   ctx.save();
-  ctx.translate(S.vx, S.vy);
-  ctx.scale(S.vScale, S.vScale);
-  ctx.drawImage(S.img, 0, 0, S.imgW, S.imgH);
+  applyImgSpace();
+  if (S.imgTrans.crop) {
+    const c = S.imgTrans.crop;
+    ctx.drawImage(S.img, c.sx, c.sy, c.sw, c.sh, 0, 0, c.sw, c.sh);
+  } else {
+    ctx.drawImage(S.img, 0, 0, S.imgW, S.imgH);
+  }
   ctx.restore();
 
   // ── Overlays (square / compass / grid) ──
@@ -660,6 +787,15 @@ function draw() {
     ctx.restore();
   }
 
+  // ── 原图复制图层（只在第三步显示；默认置顶，画在红框/罗盘等辅助线之上；
+  //     裁剪模式下暂时完全不透明，方便看清要裁的内容） ──
+  if (S.step === 3 && S.copyLayer && S.copyLayer.visible) {
+    drawCopyLayer(S.cropMode);
+  }
+
+  // ── 裁剪模式框选（画在最上层，第二/三步） ──
+  if (S.cropMode && (S.step === 2 || S.step === 3)) drawCropRect();
+
   // Debounced autosave — state changes all funnel through draw()
   scheduleAutosave();
 }
@@ -671,8 +807,7 @@ function drawSquare1() {
 
   // ── Square fill ──
   ctx.save();
-  ctx.translate(S.vx, S.vy);
-  ctx.scale(S.vScale, S.vScale);
+  applyImgSpace();
 
   // Fill (85% transparent scarlet = 15% opacity)
   ctx.fillStyle = 'rgba(220, 30, 50, 0.15)';
@@ -778,13 +913,245 @@ function drawSquare1() {
   ctx.restore();
 }
 
+// ═══════════════════════════════════════
+//  原图复制图层（v2.4）
+// ═══════════════════════════════════════
+function drawCopyLayer(forceOpaque) {
+  const L = S.copyLayer;
+  if (!L || !S.img) return;
+
+  const sw = L.crop ? L.crop.sw : S.imgW;
+  const sh = L.crop ? L.crop.sh : S.imgH;
+
+  ctx.save();
+  applyImgSpace();
+  ctx.globalAlpha = forceOpaque ? 1 : (1 - L.transparency);   // 裁剪模式下暂时完全不透明
+  ctx.translate(L.cx, L.cy);
+  ctx.rotate(L.angle);
+  ctx.scale(L.scale, L.scale);
+  if (L.crop) {
+    ctx.drawImage(S.img, L.crop.sx, L.crop.sy, L.crop.sw, L.crop.sh, -sw / 2, -sh / 2, sw, sh);
+  } else {
+    ctx.drawImage(S.img, -S.imgW / 2, -S.imgH / 2, S.imgW, S.imgH);
+  }
+  ctx.restore();
+
+  // 操作手柄 / 虚线边框 —— 仅第三步（调整模式；裁剪模式下隐藏）
+  if (S.step === 3 && !S.cropMode) {
+    drawCopyLayerHandles();
+  }
+}
+
+function drawCopyLayerHandles() {
+  const L = S.copyLayer;
+  const sw = L.crop ? L.crop.sw : S.imgW;
+  const sh = L.crop ? L.crop.sh : S.imgH;
+  const w = sw * L.scale, h = sh * L.scale;
+
+  ctx.save();
+  applyImgSpace();
+
+  // 虚线边框（旋转后的图层范围）
+  const corners = getCorners(L.cx, L.cy, w, h, L.angle);
+  ctx.strokeStyle = 'rgba(53,115,176,0.55)';
+  ctx.lineWidth = 1.6 / S.vScale;
+  ctx.setLineDash([8/S.vScale, 6/S.vScale]);
+  ctx.beginPath();
+  ctx.moveTo(corners[0].x, corners[0].y);
+  for (let i = 1; i < 4; i++) ctx.lineTo(corners[i].x, corners[i].y);
+  ctx.closePath();
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // 旋转手柄（图层顶部中点）
+  const rh = getRotHandle(L.cx, L.cy, w, h, L.angle);
+  const isHover = S.hoverMode === 'layer-rotate' || S.dragMode === 'layer-rotate';
+  const rHr = 11 / S.vScale;
+
+  ctx.strokeStyle = 'rgba(53,115,176,0.45)';
+  ctx.lineWidth = 1.4 / S.vScale;
+  ctx.setLineDash([4/S.vScale, 4/S.vScale]);
+  ctx.beginPath();
+  ctx.moveTo(L.cx, L.cy);
+  ctx.lineTo(rh.x, rh.y);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  ctx.fillStyle = isHover ? '#4a90d9' : 'rgba(220,235,250,0.95)';
+  ctx.strokeStyle = isHover ? '#3573b0' : 'rgba(120,150,180,0.85)';
+  ctx.lineWidth = 2 / S.vScale;
+  ctx.beginPath();
+  ctx.arc(rh.x, rh.y, rHr, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+
+  // 旋转图标（小圆弧+箭头）
+  ctx.strokeStyle = '#3573b0';
+  ctx.lineWidth = 1.5 / S.vScale;
+  ctx.beginPath();
+  ctx.arc(rh.x, rh.y, rHr * 0.45, -Math.PI * 0.7, Math.PI * 0.7);
+  ctx.stroke();
+  const ax = rh.x + rHr * 0.45 * Math.cos(Math.PI * 0.7);
+  const ay = rh.y + rHr * 0.45 * Math.sin(Math.PI * 0.7);
+  ctx.fillStyle = '#3573b0';
+  ctx.beginPath();
+  ctx.moveTo(ax, ay);
+  ctx.lineTo(ax - 3/S.vScale, ay - 3/S.vScale);
+  ctx.lineTo(ax + 3/S.vScale, ay - 3/S.vScale);
+  ctx.closePath();
+  ctx.fill();
+
+  // 手柄旁文字标注
+  ctx.fillStyle = '#3573b0';
+  ctx.font = `${11/S.vScale}px -apple-system,"PingFang SC",sans-serif`;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('图层', rh.x + 15/S.vScale, rh.y);
+
+  ctx.restore();
+}
+
+// 第三步裁剪框选：在图层局部坐标里压暗/画框（整组跟随图层的移动旋转缩放显示）
+function drawCropRectLayerLocal(r) {
+  const L = S.copyLayer;
+  const { w: cw, h: ch } = copyLayerSize();
+  const u = S.vScale * L.scale;   // 局部坐标 → 画布的缩放
+  ctx.save();
+  applyImgSpace();
+  ctx.translate(L.cx, L.cy);
+  ctx.rotate(L.angle);
+  ctx.scale(L.scale, L.scale);
+  if (r && r.w > 0 && r.h > 0) {
+    const x0 = Math.max(-cw / 2, r.x), y0 = Math.max(-ch / 2, r.y);
+    const x1 = Math.min(cw / 2, r.x + r.w), y1 = Math.min(ch / 2, r.y + r.h);
+    // 框外压暗，框内保持原样
+    ctx.fillStyle = 'rgba(30,25,15,0.35)';
+    ctx.fillRect(-cw / 2, -ch / 2, cw, Math.max(0, y0 + ch / 2));
+    ctx.fillRect(-cw / 2, y1, cw, Math.max(0, ch / 2 - y1));
+    ctx.fillRect(-cw / 2, y0, Math.max(0, x0 + cw / 2), y1 - y0);
+    ctx.fillRect(x1, y0, Math.max(0, cw / 2 - x1), y1 - y0);
+    // 绿色虚线框
+    ctx.strokeStyle = '#2e9e4f';
+    ctx.lineWidth = 2 / u;
+    ctx.setLineDash([7/u, 5/u]);
+    ctx.strokeRect(r.x, r.y, r.w, r.h);
+    ctx.setLineDash([]);
+    // 尺寸标注（框上方）
+    ctx.fillStyle = '#1d6b35';
+    ctx.font = `bold ${13/u}px -apple-system,"PingFang SC",sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'bottom';
+    ctx.fillText(`${Math.round(r.w)}×${Math.round(r.h)} px`, r.x + r.w / 2, Math.max(14/u, r.y - 6/u));
+    // 四角手柄（拖拽继续调整）
+    const hSize = 5 / u;
+    const crn = [
+      { x: r.x + r.w, y: r.y + r.h },
+      { x: r.x,       y: r.y + r.h },
+      { x: r.x,       y: r.y },
+      { x: r.x + r.w, y: r.y },
+    ];
+    for (let i = 0; i < 4; i++) {
+      const isHover = (S.dragMode === 'crop-corner' && S.dragCorner === i) || (S.hoverMode === 'crop-corner' && S.hoverCorner === i);
+      ctx.fillStyle = isHover ? '#3cb964' : '#2e9e4f';
+      ctx.strokeStyle = '#1d6b35';
+      ctx.lineWidth = 1.2 / u;
+      ctx.beginPath();
+      ctx.rect(crn[i].x - hSize, crn[i].y - hSize, hSize * 2, hSize * 2);
+      ctx.fill();
+      ctx.stroke();
+    }
+  } else {
+    // 尚未框选：整体压暗 + 提示文字
+    ctx.fillStyle = 'rgba(30,25,15,0.20)';
+    ctx.fillRect(-cw / 2, -ch / 2, cw, ch);
+    ctx.fillStyle = '#1d6b35';
+    ctx.font = `bold ${15/u}px -apple-system,"PingFang SC",sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('✂️ 按住拖动，框选要保留的区域', 0, 0);
+  }
+  ctx.restore();
+}
+
+// 裁剪模式：框外压暗 + 绿色虚线框 + 尺寸标注（第二/三步共用）
+function drawCropRect() {
+  const r = S.cropRect;
+  // 第三步：框选贴在图层上（图层局部坐标，跟着图层的旋转缩放显示）
+  if (S.step === 3 && S.copyLayer) {
+    drawCropRectLayerLocal(r);
+    return;
+  }
+  ctx.save();
+  applyImgSpace();
+  if (r && r.w > 0 && r.h > 0) {
+    // 可见区域（已裁剪的图片则按裁剪区域算）
+    const T = S.imgTrans;
+    const vx0 = T.crop ? T.crop.sx : 0;
+    const vy0 = T.crop ? T.crop.sy : 0;
+    const vw = T.crop ? T.crop.sw : S.imgW;
+    const vh = T.crop ? T.crop.sh : S.imgH;
+    const x0 = Math.max(vx0, r.x), y0 = Math.max(vy0, r.y);
+    const x1 = Math.min(vx0 + vw, r.x + r.w), y1 = Math.min(vy0 + vh, r.y + r.h);
+    // 框外压暗，框内保持原样
+    ctx.fillStyle = 'rgba(30,25,15,0.35)';
+    ctx.fillRect(vx0, vy0, vw, Math.max(0, y0 - vy0));
+    ctx.fillRect(vx0, y1, vw, Math.max(0, vy0 + vh - y1));
+    ctx.fillRect(vx0, y0, Math.max(0, x0 - vx0), y1 - y0);
+    ctx.fillRect(x1, y0, Math.max(0, vx0 + vw - x1), y1 - y0);
+    // 绿色虚线框
+    ctx.strokeStyle = '#2e9e4f';
+    ctx.lineWidth = 2 / S.vScale;
+    ctx.setLineDash([7/S.vScale, 5/S.vScale]);
+    ctx.strokeRect(r.x, r.y, r.w, r.h);
+    ctx.setLineDash([]);
+    // 尺寸标注（框上方）
+    ctx.fillStyle = '#1d6b35';
+    ctx.font = `bold ${13/S.vScale}px -apple-system,"PingFang SC",sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'bottom';
+    ctx.fillText(`${Math.round(r.w)}×${Math.round(r.h)} px`, r.x + r.w / 2, Math.max(14/S.vScale, r.y - 6/S.vScale));
+    // 四角手柄（拖拽继续调整）
+    const hSize = 5 / S.vScale;
+    const crn = [
+      { x: r.x + r.w, y: r.y + r.h },
+      { x: r.x,       y: r.y + r.h },
+      { x: r.x,       y: r.y },
+      { x: r.x + r.w, y: r.y },
+    ];
+    for (let i = 0; i < 4; i++) {
+      const isHover = (S.dragMode === 'crop-corner' && S.dragCorner === i) || (S.hoverMode === 'crop-corner' && S.hoverCorner === i);
+      ctx.fillStyle = isHover ? '#3cb964' : '#2e9e4f';
+      ctx.strokeStyle = '#1d6b35';
+      ctx.lineWidth = 1.2 / S.vScale;
+      ctx.beginPath();
+      ctx.rect(crn[i].x - hSize, crn[i].y - hSize, hSize * 2, hSize * 2);
+      ctx.fill();
+      ctx.stroke();
+    }
+  } else {
+    // 尚未框选：整体压暗 + 提示文字
+    const T = S.imgTrans;
+    const vw = T.crop ? T.crop.sw : S.imgW;
+    const vh = T.crop ? T.crop.sh : S.imgH;
+    const vx0 = T.crop ? T.crop.sx : 0;
+    const vy0 = T.crop ? T.crop.sy : 0;
+    ctx.fillStyle = 'rgba(30,25,15,0.20)';
+    ctx.fillRect(vx0, vy0, vw, vh);
+    ctx.fillStyle = '#1d6b35';
+    ctx.font = `bold ${15/S.vScale}px -apple-system,"PingFang SC",sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('✂️ 按住拖动，框选要保留的区域', vx0 + vw / 2, vy0 + vh / 2);
+  }
+  ctx.restore();
+}
+
 function drawNorthIndicator() {
   const {sqCx:cx, sqCy:cy, northAngle:a} = S;
   const sz = getRectSize();
 
   ctx.save();
-  ctx.translate(S.vx, S.vy);
-  ctx.scale(S.vScale, S.vScale);
+  applyImgSpace();
 
   const ringR = sz/2 + 30;       // inner rotating compass radius
   const outerR = ringR + 16;       // fixed outer ring
@@ -811,13 +1178,11 @@ function drawNorthIndicator() {
   ctx.translate(cx, cy);
   ctx.rotate(a);   // compass rotates with north angle
 
-  // Disc background
-  ctx.fillStyle = 'rgba(250,245,235,0.55)';
-  ctx.beginPath();
-  ctx.arc(0, 0, ringR, 0, Math.PI*2);
-  ctx.fill();
+  // 圆盘内部透明（不遮底图），只保留外圈框线
   ctx.strokeStyle = 'rgba(180,150,110,0.7)';
   ctx.lineWidth = 2 / S.vScale;
+  ctx.beginPath();
+  ctx.arc(0, 0, ringR, 0, Math.PI*2);
   ctx.stroke();
 
   // Inner ring
@@ -916,8 +1281,7 @@ function draw24Mountains() {
   const R = getRectSize() * gridScale / 2; // main compass radius
 
   ctx.save();
-  ctx.translate(S.vx, S.vy);
-  ctx.scale(S.vScale, S.vScale);
+  applyImgSpace();
 
   ctx.save();
   ctx.translate(cx, cy);
@@ -1132,14 +1496,30 @@ function resize() {
   fitImage();
 }
 
+// 适应窗口时的视图倍率（按旋转后的外接框计算，避免边角被裁掉）
+function fitScale() {
+  if (!S.img) return 1;
+  const T = S.imgTrans;
+  const cw = T.crop ? T.crop.sw : S.imgW;
+  const ch = T.crop ? T.crop.sh : S.imgH;
+  const cos = Math.abs(Math.cos(T.angle)), sin = Math.abs(Math.sin(T.angle));
+  const dispW = cw * cos + ch * sin;
+  const dispH = cw * sin + ch * cos;
+  const canvasW = els.canvas.width / window.devicePixelRatio;
+  const canvasH = els.canvas.height / window.devicePixelRatio;
+  return Math.min(canvasW / dispW, canvasH / dispH) * 0.88;
+}
+
 function fitImage() {
   if (!S.img) return;
-  const cw = els.canvas.width / window.devicePixelRatio;
-  const ch = els.canvas.height / window.devicePixelRatio;
-  const s = Math.min(cw / S.imgW, ch / S.imgH) * 0.88;
+  const T = S.imgTrans;
+  const cw = T.crop ? T.crop.sw : S.imgW;
+  const ch = T.crop ? T.crop.sh : S.imgH;
+  const s = fitScale();
   S.vScale = s;
-  S.vx = (cw - S.imgW * s) / 2;
-  S.vy = (ch - S.imgH * s) / 2;
+  // 旋转绕可见区域中心，居中计算与角度无关
+  S.vx = (els.canvas.width / window.devicePixelRatio - cw * s) / 2;
+  S.vy = (els.canvas.height / window.devicePixelRatio - ch * s) / 2;
 }
 
 // ═══════════════════════════════════════
@@ -1164,6 +1544,24 @@ els.canvas.addEventListener('mousedown', e => {
   const ip = canvas2img(pos.x, pos.y);
 
   if (S.step === 2) {
+    // 裁剪模式：已有框时先查四角（拖角调整），否则按住拖动新建框
+    if (S.cropMode) {
+      if (S.cropRect && S.cropRect.w > 0 && S.cropRect.h > 0) {
+        const ci = cropRectCornerHit(ip, S.cropRect, 9 / S.vScale);
+        if (ci >= 0) {
+          S.dragMode = 'crop-corner';
+          S.dragCorner = ci;
+          S.dragStart = ip;
+          const r = S.cropRect;
+          S.dragState = { x0: r.x, y0: r.y, x1: r.x + r.w, y1: r.y + r.h };
+          return;
+        }
+      }
+      S.dragMode = 'crop';
+      S.dragStart = ip;
+      S.cropRect = { x: ip.x, y: ip.y, w: 0, h: 0 };
+      return;
+    }
     // Check rotation handle first
     if (hitTestRotHandle(ip.x, ip.y)) {
       S.dragMode = 'rotate';
@@ -1204,6 +1602,33 @@ els.canvas.addEventListener('mousedown', e => {
   }
 
   if (S.step === 3) {
+    // 裁剪模式：已有框时先查四角（拖角调整），否则按住拖动新建框（以图层为基准）
+    if (S.cropMode) {
+      const p = imgToLayerLocal(ip.x, ip.y);
+      if (S.cropRect && S.cropRect.w > 0 && S.cropRect.h > 0) {
+        const ci = cropRectCornerHit(p, S.cropRect, 9 / (S.vScale * S.copyLayer.scale));
+        if (ci >= 0) {
+          S.dragMode = 'crop-corner';
+          S.dragCorner = ci;
+          S.dragStart = p;
+          const r = S.cropRect;
+          S.dragState = { x0: r.x, y0: r.y, x1: r.x + r.w, y1: r.y + r.h };
+          return;
+        }
+      }
+      S.dragMode = 'crop';
+      S.dragStart = p;
+      S.cropRect = { x: p.x, y: p.y, w: 0, h: 0 };
+      return;
+    }
+    const layerOn = S.copyLayer && S.copyLayer.visible;
+    // 复制图层的旋转手柄优先
+    if (layerOn && copyLayerRotHandleHit(ip.x, ip.y)) {
+      S.dragMode = 'layer-rotate';
+      S.dragStart = ip;
+      S.dragState = { angle: S.copyLayer.angle };
+      return;
+    }
     // Click on compass area → start rotating
     if (hitTestNorthHandle(ip.x, ip.y)) {
       S.northAngle = Math.atan2(ip.x - S.sqCx, -(ip.y - S.sqCy));
@@ -1212,6 +1637,13 @@ els.canvas.addEventListener('mousedown', e => {
       S.dragState = {angle: S.northAngle};
       draw();
       updateNorthDisplay();
+      return;
+    }
+    // 图层内部拖动 → 移动图层
+    if (layerOn && copyLayerBodyHit(ip.x, ip.y)) {
+      S.dragMode = 'layer-move';
+      S.dragStart = ip;
+      S.dragState = { cx: S.copyLayer.cx, cy: S.copyLayer.cy };
       return;
     }
     // Click outside compass → pan
@@ -1255,7 +1687,7 @@ els.canvas.addEventListener('mousemove', e => {
   // Update hover state
   S.hoverMode = null;
   S.hoverCorner = -1;
-  if (S.step === 2 && (S.sqW > 0 || S.sqH > 0) && !S.dragMode) {
+  if (S.step === 2 && (S.sqW > 0 || S.sqH > 0) && !S.dragMode && !S.cropMode) {
     if (hitTestRotHandle(ip.x, ip.y)) S.hoverMode = 'rotate';
     else {
       const ci = hitTestCorner(ip.x, ip.y);
@@ -1263,23 +1695,40 @@ els.canvas.addEventListener('mousemove', e => {
       else if (hitTestSquareBody(ip.x, ip.y)) S.hoverMode = 'move';
     }
   }
-  if (S.step === 3 && !S.dragMode && hitTestNorthHandle(ip.x, ip.y)) {
-    S.hoverMode = 'north';
+  if (S.step === 3 && !S.dragMode && !S.cropMode) {
+    if (S.copyLayer && S.copyLayer.visible) {
+      if (copyLayerRotHandleHit(ip.x, ip.y)) S.hoverMode = 'layer-rotate';
+      else if (hitTestNorthHandle(ip.x, ip.y)) S.hoverMode = 'north';
+      else if (copyLayerBodyHit(ip.x, ip.y)) S.hoverMode = 'layer-move';
+    } else if (hitTestNorthHandle(ip.x, ip.y)) {
+      S.hoverMode = 'north';
+    }
   }
   if (S.step === 5 && !S.dragMode && hitTestMountain(ip.x, ip.y) >= 0) {
     S.hoverMode = 'mark';
+  }
+  // 裁剪框四角悬停（第二/三步，框已画好时）
+  if (S.cropMode && !S.dragMode && S.cropRect && S.cropRect.w > 0 && S.cropRect.h > 0) {
+    let p = ip, hitR = 9 / S.vScale;
+    if (S.step === 3 && S.copyLayer) { p = imgToLayerLocal(ip.x, ip.y); hitR = 9 / (S.vScale * S.copyLayer.scale); }
+    const ci = cropRectCornerHit(p, S.cropRect, hitR);
+    if (ci >= 0) { S.hoverMode = 'crop-corner'; S.hoverCorner = ci; }
   }
 
   // Update cursor — scale mode uses corner-aware diagonal cursors
   const curMap = {
     rotate: 'grab', move: 'move', north: 'grab',
-    create: 'crosshair', mark: 'pointer',
+    'layer-move': 'move', 'layer-rotate': 'grab',
+    crop: 'crosshair', create: 'crosshair', mark: 'pointer',
   };
   const mode = S.dragMode || S.hoverMode;
-  const cIdx = S.dragMode === 'scale' ? S.dragCorner : (S.hoverMode === 'scale' ? S.hoverCorner : -1);
-  if (mode === 'scale' && cIdx >= 0) {
+  const cIdx = (S.dragMode === 'scale' || S.dragMode === 'crop-corner') ? S.dragCorner
+    : ((S.hoverMode === 'scale' || S.hoverMode === 'crop-corner') ? S.hoverCorner : -1);
+  if ((mode === 'scale' || mode === 'crop-corner') && cIdx >= 0) {
     // corners 0(BR) & 2(TL) = NW-SE axis; 1(BL) & 3(TR) = NE-SW axis
     els.canvas.style.cursor = [0,2].includes(cIdx) ? 'nwse-resize' : 'nesw-resize';
+  } else if (S.cropMode && !S.dragMode) {
+    els.canvas.style.cursor = 'crosshair';
   } else {
     els.canvas.style.cursor = curMap[mode] ||
       (S.step === 2 && S.sqW <= 0 && S.sqH <= 0 ? 'crosshair' : 'default');
@@ -1327,12 +1776,63 @@ els.canvas.addEventListener('mousemove', e => {
     if (Math.hypot(dx, dy) > 5/S.vScale) {
       S.northAngle = Math.atan2(dx, -dy);
     }
+  } else if (S.dragMode === 'layer-move') {
+    const L = S.copyLayer;
+    L.cx = S.dragState.cx + (ip.x - S.dragStart.x);
+    L.cy = S.dragState.cy + (ip.y - S.dragStart.y);
+  } else if (S.dragMode === 'layer-rotate') {
+    const L = S.copyLayer;
+    const dx = ip.x - L.cx;
+    const dy = ip.y - L.cy;
+    L.angle = Math.atan2(dx, -dy);
+    normalizeLayerAngle();
+  } else if (S.dragMode === 'crop') {
+    // 第三步：框选在图层局部坐标；第二步：原图坐标
+    let a = S.dragStart, b = ip;
+    let minX = 0, maxX = S.imgW, minY = 0, maxY = S.imgH;
+    if (S.step === 3 && S.copyLayer) {
+      b = imgToLayerLocal(ip.x, ip.y);
+      const { w, h } = copyLayerSize();
+      minX = -w / 2; maxX = w / 2; minY = -h / 2; maxY = h / 2;
+    }
+    const x0 = Math.max(minX, Math.min(maxX, Math.min(a.x, b.x)));
+    const y0 = Math.max(minY, Math.min(maxY, Math.min(a.y, b.y)));
+    const x1 = Math.max(minX, Math.min(maxX, Math.max(a.x, b.x)));
+    const y1 = Math.max(minY, Math.min(maxY, Math.max(a.y, b.y)));
+    S.cropRect = { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+  } else if (S.dragMode === 'crop-corner') {
+    let p = ip;
+    let minX = 0, maxX = S.imgW, minY = 0, maxY = S.imgH;
+    if (S.step === 3 && S.copyLayer) {
+      p = imgToLayerLocal(ip.x, ip.y);
+      const { w, h } = copyLayerSize();
+      minX = -w / 2; maxX = w / 2; minY = -h / 2; maxY = h / 2;
+    }
+    const st = S.dragState;
+    const cx = Math.max(minX, Math.min(maxX, p.x));
+    const cy = Math.max(minY, Math.min(maxY, p.y));
+    if (S.dragCorner === 0) { st.x1 = cx; st.y1 = cy; }
+    else if (S.dragCorner === 1) { st.x0 = cx; st.y1 = cy; }
+    else if (S.dragCorner === 2) { st.x0 = cx; st.y0 = cy; }
+    else { st.x1 = cx; st.y0 = cy; }
+    // 最小尺寸 12，拖过对面时停在最小尺寸
+    if (st.x1 - st.x0 < 12) { if (S.dragCorner === 0 || S.dragCorner === 3) st.x1 = st.x0 + 12; else st.x0 = st.x1 - 12; }
+    if (st.y1 - st.y0 < 12) { if (S.dragCorner === 0 || S.dragCorner === 1) st.y1 = st.y0 + 12; else st.y0 = st.y1 - 12; }
+    S.cropRect = { x: st.x0, y: st.y0, w: st.x1 - st.x0, h: st.y1 - st.y0 };
   }
 
   draw();
 });
 
 els.canvas.addEventListener('mouseup', e => {
+  if (S.dragMode === 'crop' || S.dragMode === 'crop-corner') {
+    const r = S.cropRect;
+    if (!r || r.w < 12 || r.h < 12) S.cropRect = null;
+    S.dragMode = null;
+    S.dragCorner = -1;
+    updateSidebar();
+    return;
+  }
   if (S.dragMode === 'create' && (S.sqW > 30 || S.sqH > 30)) {
     // Square created successfully
     toast('✅ 范围已划定，拖拽角落缩放、顶部圆点旋转、中心拖拽移动');
@@ -1372,6 +1872,23 @@ els.canvas.addEventListener('contextmenu', e => e.preventDefault());
 
 // ── Keyboard ──
 window.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && S.cropMode) { cancelCropMode(); return; }
+  // 第三步有复制图层时：方向键=微移图层，[/]=微旋图层，-/==缩放（Shift 加大步幅）
+  const layerActive = !!(S.step === 3 && S.copyLayer && S.copyLayer.visible && !e.ctrlKey && !S.cropMode);
+  if (layerActive) {
+    const stepPx = e.shiftKey ? 10 : 1;
+    const stepDeg = e.shiftKey ? 10 : 1;
+    const stepScale = e.shiftKey ? 1.5 : 1.1;
+    if (e.key === 'ArrowLeft') { S.copyLayer.cx -= stepPx; draw(); updateLayerDisplays(); }
+    else if (e.key === 'ArrowRight') { S.copyLayer.cx += stepPx; draw(); updateLayerDisplays(); }
+    else if (e.key === 'ArrowUp') { S.copyLayer.cy -= stepPx; draw(); updateLayerDisplays(); }
+    else if (e.key === 'ArrowDown') { S.copyLayer.cy += stepPx; draw(); updateLayerDisplays(); }
+    else if (e.key === '[') { S.copyLayer.angle -= stepDeg * Math.PI / 180; normalizeLayerAngle(); draw(); updateLayerDisplays(); }
+    else if (e.key === ']') { S.copyLayer.angle += stepDeg * Math.PI / 180; normalizeLayerAngle(); draw(); updateLayerDisplays(); }
+    else if (e.key === '-') { S.copyLayer.scale = Math.max(0.1, S.copyLayer.scale / stepScale); draw(); updateLayerDisplays(); }
+    else if (e.key === '=') { S.copyLayer.scale = Math.min(20, S.copyLayer.scale * stepScale); draw(); updateLayerDisplays(); }
+    return;
+  }
   if (S.step >= 2 && (S.sqW > 0 || S.sqH > 0)) {
     const step = e.shiftKey ? 10 : 1;
     if (e.key === 'ArrowLeft') { S.sqCx -= step; draw(); }
@@ -1449,6 +1966,10 @@ function loadImage(file) {
       S.gridScale = 1.0;
       S.overlayTransparency = 0.9;
       S.compassTransparency = 0.1;
+      S.copyLayer = null;
+      S.cropMode = false;
+      S.cropRect = null;
+      S.imgTrans = { crop: null, angle: 0 };
       S.markedMountains.clear();
       fitImage();
       draw();
@@ -1469,6 +1990,8 @@ function goToStep(s) {
   S.dragMode = null;
   S.hoverMode = null;
   S.hoverCorner = -1;
+  S.cropMode = false;
+  S.cropRect = null;
   updateUI();
   draw();
 }
@@ -1556,6 +2079,8 @@ function collectState() {
     gridScale: S.gridScale,
     overlayTransparency: S.overlayTransparency,
     compassTransparency: S.compassTransparency,
+    copyLayer: S.copyLayer ? { ...S.copyLayer, crop: S.copyLayer.crop ? { ...S.copyLayer.crop } : null } : null,
+    imgTrans: { crop: S.imgTrans.crop ? { ...S.imgTrans.crop } : null, angle: S.imgTrans.angle ?? 0 },
     markedMountains: [...S.markedMountains],
   };
 }
@@ -1569,6 +2094,8 @@ function restoreState(st) {
   S.gridScale = st.gridScale ?? 1.0;
   S.overlayTransparency = st.overlayTransparency ?? 0.9;
   S.compassTransparency = st.compassTransparency ?? 0.1;
+  S.copyLayer = st.copyLayer ? { ...st.copyLayer } : null;
+  S.imgTrans = st.imgTrans ? { crop: st.imgTrans.crop ? { ...st.imgTrans.crop } : null, angle: st.imgTrans.angle ?? 0 } : { crop: null, angle: 0 };
   S.markedMountains = new Set(st.markedMountains || []);
 }
 
@@ -1620,10 +2147,15 @@ async function saveSnapshot() {
 function makeThumbnail() {
   return new Promise(resolve => {
     try {
-      const w = 160, h = Math.max(1, Math.round(160 * S.imgH / S.imgW));
+      const T = S.imgTrans;
+      const cw = T.crop ? T.crop.sw : S.imgW;
+      const ch = T.crop ? T.crop.sh : S.imgH;
+      const w = 160, h = Math.max(1, Math.round(160 * ch / cw));
       const c = document.createElement('canvas');
       c.width = w; c.height = h;
-      c.getContext('2d').drawImage(S.img, 0, 0, w, h);
+      const g = c.getContext('2d');
+      if (T.crop) g.drawImage(S.img, T.crop.sx, T.crop.sy, T.crop.sw, T.crop.sh, 0, 0, w, h);
+      else g.drawImage(S.img, 0, 0, w, h);
       resolve(c.toDataURL('image/jpeg', 0.72));
     } catch (e) { resolve(''); }
   });
@@ -1776,7 +2308,27 @@ function updateSidebar() {
   }
 
   if (S.step === 2) {
+    // ── 裁剪图片模式 ──
+    if (S.cropMode) {
+      const r = S.cropRect;
+      sb.innerHTML = `
+        <h3>✂️ 裁剪图片</h3>
+        <p class="desc">在图上按住拖动，框选要保留的区域；框好后可<strong>拖拽四角</strong>继续调整。裁剪后可随时点「恢复整图」还原，原图不会丢失。</p>
+        ${r && r.w > 0 ? `
+        <div class="info-card">
+          <div>框选位置: <span class="val">(${Math.round(r.x)}, ${Math.round(r.y)})</span></div>
+          <div>尺寸: <span class="val">${Math.round(r.w)}×${Math.round(r.h)} px</span></div>
+        </div>
+        ` : `<p class="desc" style="color:var(--text-dim)">尚未框选——请在图上按住拖动（Esc 可取消）。</p>`}
+        <div class="ctrl-row" style="margin-top:8px">
+          <button class="primary btn-act" onclick="confirmImgCrop()">✔ 确认裁剪</button>
+          <button class="secondary btn-act" onclick="cancelCropMode()">✕ 取消</button>
+        </div>`;
+      return;
+    }
     const angleDeg = Math.round(S.sqAngle * 180 / Math.PI);
+    const imgAngleDeg = Math.round(S.imgTrans.angle * 180 / Math.PI);
+    const zoomPct = Math.round(S.vScale / fitScale() * 100);
     sb.innerHTML = `
       <h3>📐 第二步：划定户型范围</h3>
       <p class="desc">拖拽<strong>中心</strong>移动、拖拽<strong>四角</strong>自由缩放（不锁比例）、拖拽<strong>顶部○圆点</strong>旋转。可用 <kbd>↑↓←→</kbd> 微调位置，<kbd>[</kbd><kbd>]</kbd> 微调大小。</p>
@@ -1786,11 +2338,34 @@ function updateSidebar() {
         <div>宽×高: <span class="val">${Math.round(S.sqW)}×${Math.round(S.sqH)} px</span></div>
         <div>旋转: <span class="val">${angleDeg}°</span></div>
       </div>
-      <div class="ctrl-row">
-        <button class="secondary btn-act" onclick="resetSquare()"><span class="arr">🔄</span> 重新划定</button>
-        <button class="primary btn-act" onclick="goToStep(3)">确认范围 <span class="arr">→</span></button>
+      <div class="ctrl-row" style="margin-top:10px">
+        <button class="secondary btn-act" style="max-width:126px" onclick="resetSquare()"><span class="arr">🔄</span> 重新划定</button>
       </div>
       ` : `<p class="desc" style="color:#ff5566">👆 在户型图上点击并拖动以划定范围</p>`}
+      <div class="sec">
+        <h3>🖼 图像调整</h3>
+        <p class="desc">图上空白处拖动=平移画面，滚轮=缩放。建议顺序：先<strong>裁剪</strong>出需要的部分，再<strong>旋转</strong>摆正（红框和罗盘会跟着图一起转）。</p>
+        <div class="ctrl-row">
+          <button class="secondary btn-act" onclick="enterImgCropMode()">✂️ 裁剪图片</button>
+          ${S.imgTrans.crop ? `<button class="secondary btn-act" onclick="clearImgCrop()">↺ 恢复整图</button>` : ''}
+        </div>
+        <div class="ctrl-group" style="margin-top:8px">
+          <label>旋转图片: <span id="img-angle-display">${imgAngleDeg > 0 ? '+' : ''}${imgAngleDeg}°</span>（顺时针为正，实时生效）</label>
+          <div class="ctrl-row">
+            <input type="range" id="img-angle-range" min="-180" max="180" value="${imgAngleDeg}" oninput="setImgAngle(this.value)" style="flex:1;min-width:0">
+            <input type="number" id="img-angle-num" value="${imgAngleDeg}" min="-180" max="180" onchange="setImgAngle(this.value)">
+          </div>
+          <button class="secondary" style="margin-top:2px;padding:5px 10px;font-size:.75rem;align-self:flex-start" onclick="resetImgAngle()">↺ 复位旋转</button>
+        </div>
+        <div class="ctrl-group" style="margin-top:8px">
+          <label>视图大小: <span id="zoom-display">${zoomPct}%</span>（100%=适应窗口）</label>
+          <input type="range" min="25" max="400" value="${zoomPct}" oninput="setViewZoomPct(this.value)">
+          <button class="secondary" style="margin-top:2px;padding:5px 10px;font-size:.75rem;align-self:flex-start" onclick="fitImage(); draw(); updateSidebar();">↺ 适应窗口</button>
+        </div>
+      </div>
+      <div class="ctrl-row sec">
+        <button class="primary btn-act" style="max-width:none" onclick="tryNextStep()">${(S.sqW > 0 || S.sqH > 0) ? '确认范围，进入下一步 <span class="arr">→</span>' : '进入下一步 <span class="arr">→</span>'}</button>
+      </div>
     `;
   } else if (S.step === 3) {
     const deg = Math.round(S.northAngle * 180 / Math.PI);
@@ -1805,46 +2380,62 @@ function updateSidebar() {
       `北偏西 ${360-absDeg}°`;
     sb.innerHTML = `
       <h3>🧭 第三步：标记正北方</h3>
-      <p class="desc">拖拽红色<strong>北 ↑</strong>箭头指向正北方向，或在图上点击设置方向。精度到 1°。</p>
+      <p class="desc">拖红色<strong>北 ↑ 箭头</strong>指向正北（仅箭头可抓）。</p>
       <div class="info-card">
-        <div>正北方位: <span class="val" id="north-dir-name">${dirName}</span></div>
-        <div>角度: <span class="val" id="north-deg-display">${absDeg}°</span>（0°=图上正上方）</div>
+        <div>正北方位: <span class="val" id="north-dir-name">${dirName}</span> · 角度: <span class="val" id="north-deg-display">${absDeg}°</span></div>
       </div>
-      <div class="ctrl-group">
-        <label>微调角度</label>
-        <div class="ctrl-row">
-          <button class="secondary" onclick="nudgeNorth(-1)">−1°</button>
-          <input type="number" id="north-deg" value="${absDeg}" min="0" max="359"
-            onchange="setNorthDeg(this.value)" style="width:70px">
-          <button class="secondary" onclick="nudgeNorth(1)">+1°</button>
-        </div>
-        <input type="range" min="0" max="359" value="${absDeg}"
-          oninput="setNorthDeg(this.value)" style="margin-top:4px">
+      <div class="ctrl-row" style="margin-top:6px">
+        <span style="font-size:.72rem;color:var(--text-dim);white-space:nowrap">微调角度</span>
+        <button class="secondary" style="padding:3px 8px;font-size:.78rem" onclick="nudgeNorth(-1)">−1°</button>
+        <input type="number" id="north-deg" value="${absDeg}" min="0" max="359"
+          onchange="setNorthDeg(this.value)">
+        <button class="secondary" style="padding:3px 8px;font-size:.78rem" onclick="nudgeNorth(1)">+1°</button>
+        <input type="range" min="0" max="359" value="${absDeg}" style="flex:1;min-width:0"
+          oninput="setNorthDeg(this.value)">
       </div>
-      <div class="ctrl-row" style="margin-top:8px">
+      ${buildCopyLayerHTML()}
+      <div class="ctrl-row sec">
         <button class="secondary btn-act" onclick="goToStep(2)"><span class="arr">←</span> 返回调整范围</button>
         <button class="primary btn-act" onclick="goToStep(4)">生成二十四山 <span class="arr">→</span></button>
       </div>
     `;
+    updateLayerDisplays();
   } else if (S.step === 4) {
+    const absDeg = ((Math.round(S.northAngle * 180 / Math.PI) % 360) + 360) % 360;
     sb.innerHTML = `
       <h3>🏯 第四步：二十四山</h3>
-      <p class="desc">二十四山罗盘已按正北方位对齐。每山15°，共24个方位。八字带圆圈的山（子丑寅卯…）为地支正山。</p>
+      <p class="desc">罗盘已按正北方位对齐。每山 15°，共 24 个方位。</p>
       <div class="ctrl-group">
-        <label>罗盘大小: <span id="grid-scale-display">${(S.gridScale*100).toFixed(0)}%</span></label>
-        <input type="range" min="30" max="300" value="${S.gridScale*100}"
-          oninput="setGridScale(this.value)">
-        <label style="margin-top:4px">辅助线透明度: <span id="overlay-transparency-display">${Math.round(S.overlayTransparency*100)}%</span></label>
-        <input type="range" min="0" max="100" value="${Math.round(S.overlayTransparency*100)}"
-          oninput="setOverlayTransparency(this.value)">
-        <label style="margin-top:4px">罗盘透明度: <span id="compass-transparency-display">${Math.round(S.compassTransparency*100)}%</span></label>
-        <input type="range" min="0" max="100" value="${Math.round(S.compassTransparency*100)}"
-          oninput="setCompassTransparency(this.value)">
+        <div class="ctrl-row">
+          <span style="font-size:.72rem;color:var(--text-dim);white-space:nowrap">微调罗盘角度</span>
+          <button class="secondary" style="padding:3px 8px;font-size:.78rem" onclick="nudgeNorth(-1)">−1°</button>
+          <input type="number" id="north-deg" value="${absDeg}" min="0" max="359" onchange="setNorthDeg(this.value)">
+          <button class="secondary" style="padding:3px 8px;font-size:.78rem" onclick="nudgeNorth(1)">+1°</button>
+          <input type="range" min="0" max="359" value="${absDeg}" style="flex:1;min-width:0" oninput="setNorthDeg(this.value)">
+        </div>
       </div>
-      <div class="ctrl-row" style="margin-top:12px">
-        <button class="secondary btn-act" onclick="setGridScale(100)"><span class="arr">↺</span> 默认大小</button>
+      <div class="ctrl-group sec">
+        <div class="ctrl-row">
+          <span style="font-size:.72rem;color:var(--text-dim);white-space:nowrap">罗盘大小</span>
+          <span id="grid-scale-display" style="font-size:.72rem;font-weight:600;color:var(--accent-glow);min-width:34px;text-align:right">${(S.gridScale*100).toFixed(0)}%</span>
+          <button class="secondary" style="padding:1px 6px;font-size:.68rem" onclick="setGridScale(100)" title="默认大小">↺默认</button>
+          <input type="range" min="30" max="300" value="${S.gridScale*100}" style="flex:1;min-width:0"
+            oninput="setGridScale(this.value)">
+        </div>
+        <div class="ctrl-row">
+          <span style="font-size:.72rem;color:var(--text-dim);white-space:nowrap">辅助线透明度</span>
+          <span id="overlay-transparency-display" style="font-size:.72rem;font-weight:600;color:var(--accent-glow);min-width:34px;text-align:right">${Math.round(S.overlayTransparency*100)}%</span>
+          <input type="range" min="0" max="100" value="${Math.round(S.overlayTransparency*100)}" style="flex:1;min-width:0"
+            oninput="setOverlayTransparency(this.value)">
+        </div>
+        <div class="ctrl-row">
+          <span style="font-size:.72rem;color:var(--text-dim);white-space:nowrap">罗盘透明度</span>
+          <span id="compass-transparency-display" style="font-size:.72rem;font-weight:600;color:var(--accent-glow);min-width:34px;text-align:right">${Math.round(S.compassTransparency*100)}%</span>
+          <input type="range" min="0" max="100" value="${Math.round(S.compassTransparency*100)}" style="flex:1;min-width:0"
+            oninput="setCompassTransparency(this.value)">
+        </div>
       </div>
-      <div class="ctrl-row" style="margin-top:8px">
+      <div class="ctrl-row sec">
         <button class="secondary btn-act" onclick="goToStep(3)"><span class="arr">←</span> 返回调整北方</button>
         <button class="primary btn-act" onclick="goToStep(5)">⚠️ 标记模式 <span class="arr">→</span></button>
       </div>
@@ -1856,12 +2447,18 @@ function updateSidebar() {
       <h3>⚠️ 第五步：标记问题山向</h3>
       <p class="desc">点击二十四山罗盘上的任意山向来标记⚠️警告。再次点击取消标记。</p>
       <div class="ctrl-group">
-        <label>辅助线透明度: <span id="overlay-transparency-display">${Math.round(S.overlayTransparency*100)}%</span></label>
-        <input type="range" min="0" max="100" value="${Math.round(S.overlayTransparency*100)}"
-          oninput="setOverlayTransparency(this.value)">
-        <label style="margin-top:4px">罗盘透明度: <span id="compass-transparency-display">${Math.round(S.compassTransparency*100)}%</span></label>
-        <input type="range" min="0" max="100" value="${Math.round(S.compassTransparency*100)}"
-          oninput="setCompassTransparency(this.value)">
+        <div class="ctrl-row">
+          <span style="font-size:.72rem;color:var(--text-dim);white-space:nowrap">辅助线透明度</span>
+          <span id="overlay-transparency-display" style="font-size:.72rem;font-weight:600;color:var(--accent-glow);min-width:34px;text-align:right">${Math.round(S.overlayTransparency*100)}%</span>
+          <input type="range" min="0" max="100" value="${Math.round(S.overlayTransparency*100)}" style="flex:1;min-width:0"
+            oninput="setOverlayTransparency(this.value)">
+        </div>
+        <div class="ctrl-row">
+          <span style="font-size:.72rem;color:var(--text-dim);white-space:nowrap">罗盘透明度</span>
+          <span id="compass-transparency-display" style="font-size:.72rem;font-weight:600;color:var(--accent-glow);min-width:34px;text-align:right">${Math.round(S.compassTransparency*100)}%</span>
+          <input type="range" min="0" max="100" value="${Math.round(S.compassTransparency*100)}" style="flex:1;min-width:0"
+            oninput="setCompassTransparency(this.value)">
+        </div>
       </div>
       ${markedList.length > 0 ? `
       <div class="info-card">
@@ -1881,7 +2478,7 @@ function updateSidebar() {
       <div class="ctrl-row">
         ${markedList.length > 0 ? `<button class="secondary btn-act" onclick="clearAllMarks()">🗑 清除全部标记</button>` : ''}
       </div>
-      <div class="ctrl-row" style="margin-top:8px">
+      <div class="ctrl-row sec">
         <button class="secondary btn-act" onclick="goToStep(4)"><span class="arr">←</span> 返回调整二十四山</button>
         <button class="primary btn-act" onclick="goToStep(6)">生成汇总 <span class="arr">📋</span></button>
       </div>
@@ -1906,7 +2503,7 @@ function updateSidebar() {
           const elem = m[3];
           const d = BAGUA_DETAIL[m[1]] || {};
           const branchNote = m[4] ? ` · 地支:${m[4]}` : '';
-          return `<div style="display:flex;gap:8px;padding:8px 10px;background:${hexToRgba(ELEMENT_BG[elem],0.7)};border-radius:6px;margin-bottom:5px;align-items:center">
+          return `<div style="display:flex;gap:6px;padding:6px 8px;background:${hexToRgba(ELEMENT_BG[elem],0.7)};border-radius:5px;margin-bottom:4px;align-items:center">
             <span style="font-size:1.4em;color:${ELEMENT_TEXT[elem]}">⚠️</span>
             <div style="flex:1;font-size:.76rem;line-height:1.5;color:${ELEMENT_TEXT[elem]}">
               <div><strong>${m[0]}</strong> · ${m[1]}卦 · ${m[2]} · ${elem} · ${d.nature||''}${branchNote}</div>
@@ -1915,7 +2512,7 @@ function updateSidebar() {
           </div>`;
         }).join('')}
       ` : `<p class="desc" style="margin-top:12px;color:var(--text-dim)">✅ 未标记任何问题山向，二十四山布局良好。</p>`}
-      <div class="ctrl-row" style="margin-top:12px">
+      <div class="ctrl-row sec">
         <button class="secondary btn-act" onclick="goToStep(5)"><span class="arr">←</span> 返回标记模式</button>
         <button class="primary btn-act" onclick="copyPNG()">📋 复制PNG</button>
       </div>
@@ -1983,6 +2580,7 @@ function updateNorthDisplay() {
   if (degEl) degEl.textContent = absDeg + '°';
   if (inputEl) inputEl.value = absDeg;
   if (sliderEl) sliderEl.value = absDeg;
+  updateLayerDisplays();
 }
 
 function setGridScale(v) {
@@ -2027,6 +2625,324 @@ function clearAllMarks() {
   toast('已清除全部⚠️标记');
 }
 
+// ═══════════════════════════════════════
+//  原图复制图层（v2.4）—— 操作函数
+// ═══════════════════════════════════════
+function createCopyLayer() {
+  if (!S.img) return;
+  if (S.copyLayer) { toast('图层已存在，可直接调整'); return; }
+  // 图片已裁剪时，图层中心对齐裁剪区中心（整图叠上去刚好与底图重合，无需错开）
+  const T = S.imgTrans;
+  const baseCx = T.crop ? T.crop.sx + T.crop.sw / 2 : S.imgW / 2;
+  const baseCy = T.crop ? T.crop.sy + T.crop.sh / 2 : S.imgH / 2;
+  const off = T.crop ? 0 : Math.max(16, Math.min(S.imgW, S.imgH) * 0.04);  // 未裁剪时错开一点，方便看出图层
+  S.copyLayer = {
+    cx: baseCx + off,
+    cy: baseCy + off,
+    angle: 0,
+    scale: 1,
+    transparency: 0,   // 默认完全不透明（0=不透明，越高越透）
+    visible: true,
+  };
+  draw();
+  updateSidebar();
+  toast('🪞 图层已创建：图内拖动=移动，顶部○圆点=旋转');
+}
+
+function removeCopyLayer() {
+  if (!S.copyLayer) return;
+  S.copyLayer = null;
+  S.dragMode = null;
+  S.cropMode = false;
+  S.cropRect = null;
+  draw();
+  updateSidebar();
+  toast('🗑 复制图层已移除');
+}
+
+function toggleLayerVisible() {
+  if (!S.copyLayer) return;
+  S.copyLayer.visible = !S.copyLayer.visible;
+  draw();
+  updateSidebar();
+}
+
+function resetLayerAlign() {
+  if (!S.copyLayer) return;
+  const L = S.copyLayer;
+  L.cx = S.imgW / 2; L.cy = S.imgH / 2;
+  L.angle = 0; L.scale = 1;
+  L.transparency = 0; L.visible = true;
+  S.dragMode = null;
+  draw();
+  updateSidebar();
+  toast('↺ 图层已复位（居中、不旋转、原大小）');
+}
+
+function normalizeLayerAngle() {
+  const L = S.copyLayer;
+  if (!L) return;
+  while (L.angle > Math.PI) L.angle -= 2 * Math.PI;
+  while (L.angle < -Math.PI) L.angle += 2 * Math.PI;
+}
+
+function setLayerAngle(v) {
+  if (!S.copyLayer) return;
+  S.copyLayer.angle = parseInt(v) * Math.PI / 180;
+  normalizeLayerAngle();
+  draw();
+  updateLayerDisplays();
+}
+
+function setLayerScale(v) {
+  if (!S.copyLayer) return;
+  S.copyLayer.scale = Math.max(0.1, Math.min(20, (parseInt(v) || 100) / 100));
+  draw();
+  updateLayerDisplays();
+}
+
+function setLayerTransparency(v) {
+  if (!S.copyLayer) return;
+  S.copyLayer.transparency = Math.max(0, Math.min(1, (parseInt(v) || 0) / 100));
+  draw();
+  updateLayerDisplays();
+}
+
+// ── 裁剪（v2.4） ──
+function enterCropMode() {
+  if (!S.copyLayer) return;
+  S.cropMode = true;
+  S.cropRect = null;
+  S.dragMode = null;
+  draw();
+  updateSidebar();
+  toast('✂️ 在图上拖动框选要保留的区域');
+}
+
+function cancelCropMode() {
+  S.cropMode = false;
+  S.cropRect = null;
+  S.dragMode = null;
+  draw();
+  updateSidebar();
+}
+
+function confirmCrop() {
+  const r = S.cropRect;
+  if (!r || r.w < 12 || r.h < 12) { toast('✂️ 请先在图上拖动框选区域'); return; }
+  const L = S.copyLayer;
+  const srcW = L.crop ? L.crop.sw : S.imgW;
+  const srcH = L.crop ? L.crop.sh : S.imgH;
+  const srcX = L.crop ? L.crop.sx : 0;
+  const srcY = L.crop ? L.crop.sy : 0;
+  // 框选在图层局部坐标：局部(0,0)=内容中心 → 源图坐标
+  L.crop = {
+    sx: srcX + r.x + srcW / 2,
+    sy: srcY + r.y + srcH / 2,
+    sw: r.w,
+    sh: r.h,
+  };
+  // 图层中心移到框选中心（图层自己的角度、大小、透明度保持不变），裁剪块正好留在框的位置
+  const rc = { x: r.x + r.w / 2, y: r.y + r.h / 2 };
+  const cos = Math.cos(L.angle), sin = Math.sin(L.angle);
+  L.cx += (rc.x * cos - rc.y * sin) * L.scale;
+  L.cy += (rc.x * sin + rc.y * cos) * L.scale;
+  S.cropMode = false;
+  S.cropRect = null;
+  S.dragMode = null;
+  draw();
+  updateSidebar();
+  toast('✅ 已裁剪：图层只保留框选区域');
+}
+
+function clearCrop() {
+  if (!S.copyLayer) return;
+  S.copyLayer.crop = null;
+  draw();
+  updateSidebar();
+  toast('↺ 图层已恢复整图内容');
+}
+
+// ═══════════════════════════════════════
+//  图像调整（v2.4 第二步）—— 裁剪/旋转/视图缩放
+// ═══════════════════════════════════════
+function enterImgCropMode() {
+  if (!S.img) return;
+  S.cropMode = true;
+  S.cropRect = null;
+  S.dragMode = null;
+  draw();
+  updateSidebar();
+  toast('✂️ 在图上拖动框选要保留的区域');
+}
+
+function confirmImgCrop() {
+  const r = S.cropRect;
+  if (!r || r.w < 12 || r.h < 12) { toast('✂️ 请先在图上拖动框选区域'); return; }
+  S.imgTrans.crop = { sx: r.x, sy: r.y, sw: r.w, sh: r.h };
+  S.cropMode = false;
+  S.cropRect = null;
+  S.dragMode = null;
+  fitImage();
+  draw();
+  updateSidebar();
+  toast('✅ 已裁剪图片（可点「恢复整图」还原）');
+}
+
+function clearImgCrop() {
+  S.imgTrans.crop = null;
+  fitImage();
+  draw();
+  updateSidebar();
+  toast('↺ 已恢复整图');
+}
+
+function normalizeImgAngle() {
+  const T = S.imgTrans;
+  while (T.angle > Math.PI) T.angle -= 2 * Math.PI;
+  while (T.angle < -Math.PI) T.angle += 2 * Math.PI;
+}
+
+function setImgAngle(v) {
+  S.imgTrans.angle = (parseInt(v) || 0) * Math.PI / 180;
+  normalizeImgAngle();
+  draw();
+  updateImgDisplays();
+}
+
+function resetImgAngle() {
+  S.imgTrans.angle = 0;
+  draw();
+  updateSidebar();
+  toast('↺ 图片旋转已复位');
+}
+
+// 第二步底部常驻的下一步入口：没划范围时给提示
+function tryNextStep() {
+  if (S.sqW <= 0 && S.sqH <= 0) { toast('⚠️ 请先在户型图上点击拖动，划定范围'); return; }
+  goToStep(3);
+}
+
+// 视图缩放滑杆：以「适应窗口」为 100%，绕画布中心缩放
+function setViewZoomPct(v) {
+  const pct = Math.max(10, Math.min(800, parseInt(v) || 100));
+  const newScale = fitScale() * pct / 100;
+  const ratio = newScale / S.vScale;
+  const ccx = els.canvas.width / window.devicePixelRatio / 2;
+  const ccy = els.canvas.height / window.devicePixelRatio / 2;
+  S.vx = ccx - (ccx - S.vx) * ratio;
+  S.vy = ccy - (ccy - S.vy) * ratio;
+  S.vScale = newScale;
+  draw();
+  const disp = document.getElementById('zoom-display');
+  if (disp) disp.textContent = Math.round(pct) + '%';
+}
+
+// 第二步侧栏图像调整显示的实时刷新
+function updateImgDisplays() {
+  const deg = Math.round(S.imgTrans.angle * 180 / Math.PI);
+  const set = (id, txt) => { const el = document.getElementById(id); if (el) el.textContent = txt; };
+  const setv = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; };
+  set('img-angle-display', (deg > 0 ? '+' : '') + deg + '°');
+  setv('img-angle-num', deg);
+  setv('img-angle-range', deg);
+}
+
+// 第三步侧栏里图层参数显示与滑杆/数值框的实时同步
+function updateLayerDisplays() {
+  const L = S.copyLayer;
+  if (!L) return;
+  const R = Math.round(L.angle * 180 / Math.PI);   // −180 ~ 180
+  const scalePct = Math.round(L.scale * 100);
+  const trPct = Math.round(L.transparency * 100);
+  const set = (id, txt) => { const el = document.getElementById(id); if (el) el.textContent = txt; };
+  const setv = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; };
+  set('ly-angle-display', (R > 0 ? '+' : '') + R + '°');
+  set('ly-scale-display', scalePct + '%');
+  set('ly-tr-display', trPct + '%');
+  setv('ly-angle-num', R);
+  setv('ly-angle-range', R);
+  setv('ly-scale-num', scalePct);
+  setv('ly-scale-range', scalePct);
+  setv('ly-tr-num', trPct);
+  setv('ly-tr-range', trPct);
+}
+
+function buildCopyLayerHTML() {
+  // ── 裁剪模式：单独面板 ──
+  if (S.cropMode) {
+    const r = S.cropRect;
+    return `
+      <div class="sec">
+        <h3>✂️ 裁剪图层</h3>
+        <p class="desc">在图上按住拖动，框选要保留的区域；框好后可<strong>拖拽四角</strong>继续调整。<strong>绿色框贴在图层上</strong>，可先把图层移动/旋转/放大到位再裁剪。裁剪期间图层会暂时置顶并完整显示，完成后自动恢复原来的透明度和层级。</p>
+        ${r && r.w > 0 ? `
+        <div class="info-card">
+          <div>框选位置: <span class="val">(${Math.round(r.x)}, ${Math.round(r.y)})</span></div>
+          <div>尺寸: <span class="val">${Math.round(r.w)}×${Math.round(r.h)} px</span></div>
+        </div>
+        ` : `<p class="desc" style="color:var(--text-dim)">尚未框选——请在图上按住拖动（Esc 可取消）。</p>`}
+        <div class="ctrl-row" style="margin-top:8px">
+          <button class="primary btn-act" onclick="confirmCrop()">✔ 确认裁剪</button>
+          <button class="secondary btn-act" onclick="cancelCropMode()">✕ 取消</button>
+        </div>
+      </div>`;
+  }
+  const L = S.copyLayer;
+  if (!L) {
+    return `
+      <div class="sec">
+        <h3>🪞 原图复制图层</h3>
+        <p class="desc">同一张图上既有<strong>户型图</strong>又有<strong>整层平面图</strong>、且北箭头只标在整层图上时：复制原图作为可移动图层，旋转/缩放/平移，把图层里的户型轮廓对齐到原图整层平面中的户型位置。图层支持<strong>裁剪</strong>，可以只保留图上某一小块（比如单张户型图）再拿去对齐。</p>
+        <button class="primary btn-act" style="max-width:none" onclick="createCopyLayer()">➕ 复制原图为新图层</button>
+      </div>`;
+  }
+  const c = L.crop;
+  const angleDeg = Math.round(L.angle * 180 / Math.PI);
+  const scalePct = Math.round(L.scale * 100);
+  const trPct = Math.round(L.transparency * 100);
+  return `
+    <div class="sec">
+      <h3>🪞 原图复制图层</h3>
+      <p class="desc">拖动=移动，<strong>○圆点</strong>=旋转，右键=平移。</p>
+      <div class="info-card">
+        <div>复制图层旋转: <span class="val">${angleDeg > 0 ? '+' : ''}${angleDeg}°</span>（顺时针为正）</div>
+        <div>复制图层大小: <span class="val">${scalePct}%</span> · 复制图层透明度: <span class="val">${trPct}%</span>（越高越透明）</div>
+        ${c ? `<div>复制图层已裁剪: <span class="val">(${Math.round(c.sx)}, ${Math.round(c.sy)}) ${Math.round(c.sw)}×${Math.round(c.sh)} px</span></div>` : ''}
+      </div>
+      <div class="ctrl-group">
+        <div class="ctrl-row">
+          <span style="font-size:.72rem;color:var(--text-dim);white-space:nowrap">复制图层旋转角度</span>
+          <input type="range" id="ly-angle-range" min="-180" max="180" value="${angleDeg}" oninput="setLayerAngle(this.value)" style="flex:1;min-width:0">
+          <input type="number" id="ly-angle-num" value="${angleDeg}" min="-180" max="180" onchange="setLayerAngle(this.value)">
+        </div>
+        <div class="ctrl-row">
+          <span style="font-size:.72rem;color:var(--text-dim);white-space:nowrap">复制图层大小</span>
+          <input type="range" id="ly-scale-range" min="10" max="2000" value="${scalePct}" oninput="setLayerScale(this.value)" style="flex:1;min-width:0">
+          <input type="number" id="ly-scale-num" value="${scalePct}" min="10" max="2000" onchange="setLayerScale(this.value)">
+        </div>
+        <div class="ctrl-row">
+          <span style="font-size:.72rem;color:var(--text-dim);white-space:nowrap">复制图层透明度</span>
+          <input type="range" id="ly-tr-range" min="0" max="100" value="${trPct}" oninput="setLayerTransparency(this.value)" style="flex:1;min-width:0">
+          <input type="number" id="ly-tr-num" value="${trPct}" min="0" max="100" onchange="setLayerTransparency(this.value)">
+        </div>
+      </div>
+      <div class="ctrl-row" style="margin-top:6px">
+        <button class="secondary" style="flex:1 1 0;padding:3px 8px;font-size:.72rem" onclick="toggleLayerVisible()">${L.visible ? '🙈 隐藏图层' : '👁 显示图层'}</button>
+        <button class="secondary" style="flex:1 1 0;padding:3px 8px;font-size:.72rem" onclick="resetLayerAlign()">↺ 重置对齐</button>
+        <button class="secondary" style="flex:1 1 0;padding:3px 8px;font-size:.72rem;background:#f0dcd6;color:#7a1a10" onclick="removeCopyLayer()">🗑 移除图层</button>
+      </div>
+      <div class="ctrl-row" style="margin-top:8px">
+        <button class="primary btn-act" style="max-width:none" onclick="enterCropMode()">✂️ ${c ? '重新裁剪' : '裁剪图层（只保留框选区域）'}</button>
+      </div>
+      ${c ? `
+      <div class="ctrl-row" style="margin-top:6px">
+        <button class="secondary" style="flex:1 1 0;padding:3px 8px;font-size:.72rem" onclick="clearCrop()">↺ 恢复整图内容</button>
+      </div>` : ''}
+      <p class="desc" style="margin-top:6px">对齐后，信息卡里的<strong>复制图层旋转角度</strong>即两者夹角；先把复制图层透明度调高可露出罗盘。</p>
+    </div>`;
+}
+
 function build24MountainsLegendHTML() {
   // Group mountains by trigram
   const trigramGroups = [
@@ -2044,15 +2960,15 @@ function build24MountainsLegendHTML() {
     const bg = hexToRgba(ELEMENT_BG[elem], 0.7);
     const tc = ELEMENT_TEXT[elem];
     const d = BAGUA_DETAIL[g.t] || {};
-    return `<div style="display:flex;align-items:center;gap:8px;padding:7px 10px;background:${bg};border-radius:6px;margin-bottom:5px">
-      <span style="font-size:1.2em;width:26px;text-align:center">${g.emoji}</span>
-      <span style="font-weight:600;font-size:.85rem;color:${tc};width:22px">${g.t}</span>
-      <span style="font-size:.8rem;color:${tc};letter-spacing:.08em">${g.mountains.join(' ')}</span>
-      <span style="flex:1;font-size:.7rem;color:${tc};opacity:.7;text-align:right">${elem} · ${d.nature||''}</span>
+    return `<div style="display:flex;align-items:center;gap:6px;padding:3px 6px;background:${bg};border-radius:4px;margin-bottom:2px">
+      <span style="font-size:1.05em;width:22px;text-align:center">${g.emoji}</span>
+      <span style="font-weight:600;font-size:.78rem;color:${tc};width:18px">${g.t}</span>
+      <span style="font-size:.72rem;color:${tc};letter-spacing:.06em">${g.mountains.join(' ')}</span>
+      <span style="flex:1;font-size:.62rem;color:${tc};opacity:.7;text-align:right">${elem} · ${d.nature||''}</span>
     </div>`;
   }).join('');
-  return `<div id="legend" style="margin-top:8px">
-    <h3 style="margin-bottom:8px;color:var(--gold);font-size:.88rem">📖 二十四山图例 (每卦三山)</h3>
+  return `<div id="legend" class="sec">
+    <h3 style="margin-bottom:4px;color:var(--gold);font-size:.88rem">📖 二十四山图例 (每卦三山)</h3>
     ${cards}
   </div>`;
 }
@@ -2085,8 +3001,8 @@ function buildLegendHTML() {
       </div>
     </div>`;
   }).join('');
-  return `<div id="legend" style="margin-top:8px">
-    <h3 style="margin-bottom:8px;color:var(--gold);font-size:.88rem">📖 八卦方位图例</h3>
+  return `<div id="legend" class="sec">
+    <h3 style="margin-bottom:4px;color:var(--gold);font-size:.88rem">📖 八卦方位图例</h3>
     ${cards}
   </div>`;
 }
@@ -2147,6 +3063,27 @@ window.startNewAnalysis = startNewAnalysis;
 window.loadRecord = loadRecord;
 window.renameRecord = renameRecord;
 window.deleteRecord = deleteRecord;
+window.createCopyLayer = createCopyLayer;
+window.removeCopyLayer = removeCopyLayer;
+window.toggleLayerVisible = toggleLayerVisible;
+window.resetLayerAlign = resetLayerAlign;
+window.setLayerAngle = setLayerAngle;
+window.setLayerScale = setLayerScale;
+window.setLayerTransparency = setLayerTransparency;
+window.enterCropMode = enterCropMode;
+window.cancelCropMode = cancelCropMode;
+window.confirmCrop = confirmCrop;
+window.clearCrop = clearCrop;
+window.enterImgCropMode = enterImgCropMode;
+window.confirmImgCrop = confirmImgCrop;
+window.clearImgCrop = clearImgCrop;
+window.setImgAngle = setImgAngle;
+window.resetImgAngle = resetImgAngle;
+window.setViewZoomPct = setViewZoomPct;
+window.tryNextStep = tryNextStep;
+window.fitImage = fitImage;
+window.draw = draw;
+window.updateSidebar = updateSidebar;
 
 init();
 </script>
